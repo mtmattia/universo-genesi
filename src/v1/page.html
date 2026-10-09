@@ -1,0 +1,168 @@
+<title>Universo Genesi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* layout: osservatorio — viewport 3D a sinistra, strumentazione a destra; impilati su telefono */
+:root{
+ --void:#06070c; --panel:#0d0f17; --line:#1f2333; --ink:#e6e8f2; --dim:#8a8fa8; --star:#ffd27a; --life:#7af0c4;
+ --f-disp:'Unbounded',system-ui,sans-serif; --f-body:'IBM Plex Sans',system-ui,sans-serif; --f-mono:'IBM Plex Mono',ui-monospace,monospace;
+ color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--void);color:var(--ink);font-family:var(--f-body);font-size:14px;margin:0}
+.wrap{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;padding-block:16px;padding-inline:16px;max-width:1400px;margin:0 auto;box-sizing:border-box}
+@media (max-width:860px){.wrap{grid-template-columns:minmax(0,1fr)}}
+.view{position:relative;min-width:0}
+canvas{display:block;width:100%;aspect-ratio:1;max-width:100%;border:1px solid var(--line);border-radius:6px;background:var(--void);touch-action:none;cursor:grab}
+canvas:active{cursor:grabbing}
+.era{position:absolute;left:14px;top:12px;pointer-events:none}
+.era b{display:block;font-family:var(--f-disp);font-weight:500;font-size:15px;letter-spacing:.02em;text-wrap:balance}
+.era span{font-family:var(--f-mono);font-size:12px;color:var(--dim)}
+.toast{position:absolute;left:14px;right:14px;bottom:12px;font-size:13px;color:var(--star);pointer-events:none;transition:opacity .6s}
+.ctrl{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center}
+button{font:500 13px var(--f-body);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:8px 12px;cursor:pointer}
+button:hover{border-color:#3a4060}button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--star);outline-offset:2px}
+button[aria-pressed="true"]{border-color:var(--star);color:var(--star)}
+.speed{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dim);margin-left:auto}
+input[type=range]{accent-color:var(--star);width:110px}
+aside{display:flex;flex-direction:column;gap:14px;min-width:0}
+h1{font-family:var(--f-disp);font-weight:700;font-size:20px;margin:0;letter-spacing:.01em}
+.sub{color:var(--dim);margin:4px 0 0;line-height:1.5}
+.sec{border-top:1px solid var(--line);padding-top:12px}
+.lbl{font-family:var(--f-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
+.ptable{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.el{border:1px solid var(--line);border-radius:4px;padding:5px 6px;background:var(--panel);position:relative}
+.el .z{font-family:var(--f-mono);font-size:10px;color:var(--dim)}
+.el .s{font-family:var(--f-disp);font-size:16px;font-weight:500;line-height:1.2}
+.el .c{font-family:var(--f-mono);font-size:12px;font-variant-numeric:tabular-nums}
+.el .bar{position:absolute;left:0;bottom:0;height:2px;background:var(--elc);border-radius:0 0 3px 3px}
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 14px;font-size:13px}
+.stats div{display:flex;justify-content:space-between;gap:8px}.stats dd{margin:0;font-family:var(--f-mono);font-variant-numeric:tabular-nums}.stats dt{color:var(--dim)}
+.log{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto;font-size:13px;line-height:1.45}
+.log li{display:grid;grid-template-columns:62px minmax(0,1fr);gap:8px}
+.log time{font-family:var(--f-mono);font-size:11px;color:var(--dim);padding-top:2px;font-variant-numeric:tabular-nums}
+.log li.new{color:var(--star)}
+details{font-size:13px;line-height:1.55;color:var(--dim)}
+summary{cursor:pointer;color:var(--ink);font-weight:500}
+details ul{padding-left:18px;margin:8px 0 0}details li{margin-bottom:4px}
+.legend{display:flex;flex-wrap:wrap;gap:10px;font-size:12px;color:var(--dim);margin-top:8px}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
+</style>
+<div class="wrap">
+ <div class="view">
+  <canvas id="cv" aria-label="Simulazione 3D di un universo di particelle: trascina per ruotare, pizzica o usa la rotella per lo zoom"></canvas>
+  <div class="era"><b id="era">Plasma primordiale</b><span id="clock">t = 0</span></div>
+  <div class="toast" id="toast"></div>
+  <div class="ctrl">
+   <button id="play" aria-pressed="false">Pausa</button>
+   <button id="reset">Nuovo Big Bang</button>
+   <button id="bonds" aria-pressed="true">Legami</button>
+   <button id="spin" aria-pressed="true">Rotazione</button>
+   <label class="speed" for="spd">Velocità <input id="spd" type="range" min="1" max="4" step="1" value="2"><span id="spdv">2×</span></label>
+  </div>
+  <div class="legend">
+   <span><i style="background:var(--star)"></i>Fusione / stella</span>
+   <span><i style="background:transparent;border:1.5px solid var(--life)"></i>Vita (colore = stirpe)</span>
+   <span>Linee = legami chimici</span>
+  </div>
+ </div>
+ <aside>
+  <div>
+   <h1>Universo Genesi</h1>
+   <p class="sub">Una scatola 3D di particelle che evolve da sola: gravità, fusione nucleare, chimica e replicazione. Nessuno script di eventi, solo regole locali.</p>
+  </div>
+  <div class="sec">
+   <p class="lbl">Tavola degli elementi presenti</p>
+   <div class="ptable" id="ptable"></div>
+  </div>
+  <div class="sec">
+   <p class="lbl">Stato dell'universo</p>
+   <dl class="stats" id="stats"></dl>
+  </div>
+  <div class="sec">
+   <p class="lbl">Cronaca</p>
+   <ol class="log" id="log"></ol>
+  </div>
+  <div class="sec">
+   <details>
+    <summary>Le regole del modello</summary>
+    <ul>
+     <li><b>Gravità</b> newtoniana (1/r²) tra tutte le particelle, proporzionale alla massa (numero di nucleoni).</li>
+     <li><b>Fusione</b>: due nuclei si fondono solo se l'urto supera la barriera di Coulomb (cresce con le cariche) e il gas è abbastanza denso. È probabilistica, come l'effetto tunnel.</li>
+     <li><b>Energia</b>: ogni fusione libera la differenza di energia di legame (formula di Weizsäcker), che riscalda i vicini. Oltre il ferro la fusione costa energia e non avviene.</li>
+     <li><b>Raffreddamento</b>: il gas irradia, di più dove è denso. È questo che fa collassare le nubi in stelle.</li>
+     <li><b>Supernova</b>: un nucleo pesante nel cuore di una stella esplode e disperde C, N, O e metalli.</li>
+     <li><b>Chimica</b>: atomi freddi e lenti si legano rispettando la valenza (H 1, O 2, N 3, C 4).</li>
+     <li><b>Vita</b> (la parte più ipotetica): una molecola con C, H, N, O abbastanza grande cattura atomi liberi, cresce e si divide in due copie con piccole mutazioni.</li>
+     <li>La scatola è aperta: dal bordo entra lentamente idrogeno fresco, come il gas che cade nelle galassie reali.</li>
+    </ul>
+    <p>Scale e tempi sono compressi di molti ordini di grandezza: le leggi sono reali, i numeri no.</p>
+   </details>
+  </div>
+ </aside>
+</div>
+<script>
+/*CORE*/
+</script>
+<script>
+(function(){
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const $=id=>document.getElementById(id);
+let S,run=true,spf=2,showB=true,spin=true,yaw=0.6,pitch=0.35,zoom=1,lastLog=0,toastT=0;
+const RM=window.matchMedia('(prefers-reduced-motion: reduce)').matches;if(RM)spin=false,$('spin').setAttribute('aria-pressed','false');
+const ZN=['1','2','6','7','8','12','26'];
+function init(){S=makeSim({});lastLog=0;$('log').innerHTML='';
+ $('ptable').innerHTML=S.EL.map((e,i)=>`<div class="el" style="--elc:${e.c}"><div class="z">${ZN[i]}</div><div class="s" style="color:${e.c}">${e.s}</div><div class="c" id="c${i}">0</div><div class="bar" id="b${i}"></div></div>`).join('')+`<div class="el"><div class="z">∑</div><div class="s">N</div><div class="c" id="cN">0</div></div>`;}
+function size(){const d=Math.min(2,window.devicePixelRatio||1),w=cv.clientWidth;cv.width=w*d;cv.height=w*d;}
+window.addEventListener('resize',size);
+let drag=null,pinch=0;
+cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);drag={x:e.clientX,y:e.clientY};});
+cv.addEventListener('pointermove',e=>{if(!drag)return;yaw+=(e.clientX-drag.x)*.008;pitch=Math.max(-1.4,Math.min(1.4,pitch+(e.clientY-drag.y)*.008));drag={x:e.clientX,y:e.clientY};});
+cv.addEventListener('pointerup',()=>drag=null);cv.addEventListener('pointercancel',()=>drag=null);
+cv.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.6,Math.min(3,zoom*(e.deltaY<0?1.1:.9)));},{passive:false});
+cv.addEventListener('touchmove',e=>{if(e.touches.length===2){const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);if(pinch)zoom=Math.max(.6,Math.min(3,zoom*d/pinch));pinch=d;drag=null;}},{passive:true});
+cv.addEventListener('touchend',()=>pinch=0);
+$('play').onclick=()=>{run=!run;$('play').textContent=run?'Pausa':'Avvia';$('play').setAttribute('aria-pressed',String(!run));};
+$('reset').onclick=()=>{init();};
+$('bonds').onclick=()=>{showB=!showB;$('bonds').setAttribute('aria-pressed',String(showB));};
+$('spin').onclick=()=>{spin=!spin;$('spin').setAttribute('aria-pressed',String(spin));};
+$('spd').oninput=e=>{spf=+e.target.value;$('spdv').textContent=spf+'×';};
+function proj(x,y,z,W,cy,sy,cp,sp){const L=S.L;x-=L/2;y-=L/2;z-=L/2;const x1=x*cy-z*sy,z1=x*sy+z*cy,y1=y*cp-z1*sp,z2=y*sp+z1*cp;const D=L*1.6,f=W*.95*zoom/(D+z2);return[W/2+x1*f,W/2+y1*f,f,z2];}
+function era(k){if(S.cells>0||S.births>0)return'Era della vita';if(S.seen.mol&&(k[2]+k[3]+k[4])>20&&S.sn>0)return'Chimica prebiotica';if(S.sn>0)return'Arricchimento: supernove';if(S.fus>0&&k[1]>0)return'Prime stelle';return'Plasma primordiale';}
+function draw(){
+ const W=cv.width;ctx.fillStyle='#06070c';ctx.fillRect(0,0,W,W);
+ const cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch),L=S.L;
+ ctx.strokeStyle='rgba(120,130,170,.14)';ctx.lineWidth=1;
+ const V=[];for(let i=0;i<8;i++)V.push(proj(i&1?L:0,i&2?L:0,i&4?L:0,W,cy,sy,cp,sp));
+ [[0,1],[2,3],[4,5],[6,7],[0,2],[1,3],[4,6],[5,7],[0,4],[1,5],[2,6],[3,7]].forEach(([a,b])=>{ctx.beginPath();ctx.moveTo(V[a][0],V[a][1]);ctx.lineTo(V[b][0],V[b][1]);ctx.stroke();});
+ const P=S.P,pr=new Array(P.length);
+ for(let i=0;i<P.length;i++){const p=P[i];const q=proj(p.x,p.y,p.z,W,cy,sy,cp,sp);p._s=q;pr[i]=i;}
+ pr.sort((a,b)=>P[b]._s[3]-P[a]._s[3]);
+ if(showB){ctx.lineWidth=Math.max(1,W/700);for(const p of P){for(const q of p.b){if(q.id<p.id)continue;if(Math.abs(q.x-p.x)>40||Math.abs(q.y-p.y)>40||Math.abs(q.z-p.z)>40)continue;ctx.strokeStyle=p.life?`hsla(${p.hue},80%,65%,.8)`:'rgba(200,210,240,.35)';ctx.beginPath();ctx.moveTo(p._s[0],p._s[1]);ctx.lineTo(q._s[0],q._s[1]);ctx.stroke();}}}
+ for(const i of pr){const p=P[i],[x,y,f]=p._s;const r=Math.max(.8,(1.1+Math.cbrt(p.A)*1.1)*f);
+  if(p.hot>0){ctx.fillStyle=`rgba(255,200,110,${Math.min(.35,p.hot/90)})`;ctx.beginPath();ctx.arc(x,y,r*3.2,0,6.283);ctx.fill();}
+  ctx.fillStyle=S.EL[p.e].c;ctx.beginPath();ctx.arc(x,y,r,0,6.283);ctx.fill();
+  if(p.life){ctx.strokeStyle=`hsl(${p.hue},85%,62%)`;ctx.lineWidth=Math.max(1,r*.5);ctx.beginPath();ctx.arc(x,y,r*2,0,6.283);ctx.stroke();}}
+ for(const fx of S.fx){const [x,y,f]=proj(fx.x,fx.y,fx.z,W,cy,sy,cp,sp);const a=1-fx.r/fx.max;ctx.strokeStyle=`rgba(${fx.c},${a*.8})`;ctx.lineWidth=Math.max(1,W/500);ctx.beginPath();ctx.arc(x,y,fx.r*f,0,6.283);ctx.stroke();}
+}
+function fmt(n){return n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e4?(n/1e3).toFixed(0)+'k':Math.round(n).toLocaleString('it-IT');}
+function hud(){
+ const k=S.counts(),tot=S.P.length;
+ for(let i=0;i<7;i++){$('c'+i).textContent=k[i];$('b'+i).style.width=(k[i]/tot*100).toFixed(1)+'%';}
+ $('cN').textContent=tot;
+ $('era').textContent=era(k);$('clock').textContent='t = '+S.t.toLocaleString('it-IT')+' passi';
+ const T=S.temp();
+ $('stats').innerHTML=[['Temperatura gas',T.toFixed(1)],['Fusioni',fmt(S.fus)],['Supernove',fmt(S.sn)],['Molecole',S.mols],['Oggetti solidi',S.rocks],['Forme di vita',S.cells],['Stirpi nate',S.lin],['Replicazioni',S.births],['Energia da fusione',fmt(S.energy.fus)],['Energia irradiata',fmt(S.energy.rad)]].map(([a,b])=>`<div><dt>${a}</dt><dd>${b}</dd></div>`).join('');
+ if(S.log.length>lastLog){const ol=$('log');for(;lastLog<S.log.length;lastLog++){const l=S.log[lastLog];ol.querySelectorAll('.new').forEach(e=>e.classList.remove('new'));const li=document.createElement('li');li.className='new';li.innerHTML=`<time>${l.t.toLocaleString('it-IT')}</time><span></span>`;li.lastChild.textContent=l.msg;ol.appendChild(li);ol.scrollTop=ol.scrollHeight;if(lastLog>0){$('toast').textContent=l.msg;$('toast').style.opacity=1;toastT=performance.now();}}}
+ if(performance.now()-toastT>4000)$('toast').style.opacity=0;
+}
+let frame=0;
+function loop(){
+ if(run){const t0=performance.now();for(let i=0;i<spf;i++){S.step();if(performance.now()-t0>28)break;}}
+ if(spin&&!drag)yaw+=.0025;
+ draw();if(frame++%10===0)hud();requestAnimationFrame(loop);
+}
+init();size();hud();requestAnimationFrame(loop);
+})();
+</script>

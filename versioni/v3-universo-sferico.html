@@ -1,0 +1,339 @@
+<title>Universo Genesi III</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* layout: osservatorio — viewport 3D a sinistra, strumentazione a destra; impilati su telefono */
+:root{
+ --void:#04050a; --panel:#0b0d15; --line:#1d2131; --ink:#e7e9f3; --dim:#8b90a9; --star:#ffd27a; --life:#7af0c4;
+ --f-disp:'Unbounded',system-ui,sans-serif; --f-body:'IBM Plex Sans',system-ui,sans-serif; --f-mono:'IBM Plex Mono',ui-monospace,monospace;
+ color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--void);color:var(--ink);font-family:var(--f-body);font-size:14px;margin:0}
+.wrap{display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:16px;padding-block:16px;padding-inline:16px;max-width:1400px;margin:0 auto;box-sizing:border-box}
+@media (max-width:860px){.wrap{grid-template-columns:minmax(0,1fr)}}
+.view{position:relative;min-width:0}
+canvas{display:block;width:100%;aspect-ratio:1;max-width:100%;border:1px solid var(--line);border-radius:6px;background:var(--void);touch-action:none;cursor:grab}
+canvas:active{cursor:grabbing}
+.hud-tl{position:absolute;left:14px;top:12px;pointer-events:none}
+.hud-tl b{display:block;font-family:var(--f-disp);font-weight:500;font-size:15px;letter-spacing:.02em}
+.hud-tl span{display:block;font-family:var(--f-mono);font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+.hud-tr{position:absolute;right:14px;top:12px;text-align:right;pointer-events:none;font-family:var(--f-mono);font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
+.hud-tr b{display:block;font-family:var(--f-disp);font-weight:500;font-size:15px;color:var(--ink)}
+.badge{display:inline-block;margin-top:6px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--star);border:1px solid var(--star);border-radius:4px;padding:3px 6px}
+.toast{position:absolute;left:14px;right:14px;bottom:12px;font-size:13px;color:var(--star);pointer-events:none;transition:opacity .6s;text-shadow:0 0 6px #000}
+.ctrl{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center}
+button{font:500 13px var(--f-body);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:8px 12px;cursor:pointer}
+button:hover{border-color:#3a4060}
+button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--star);outline-offset:2px}
+button[aria-pressed="true"]{border-color:var(--star);color:var(--star)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:5px;overflow:hidden}
+.seg button{border:0;border-radius:0;border-right:1px solid var(--line)}.seg button:last-child{border-right:0}
+.speed{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dim)}
+input[type=range]{accent-color:var(--star);width:100px}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--dim);margin-top:10px;align-items:center}
+.ramp{display:inline-block;width:90px;height:8px;border-radius:2px;vertical-align:-1px;margin:0 6px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+aside{display:flex;flex-direction:column;gap:14px;min-width:0}
+h1{font-family:var(--f-disp);font-weight:700;font-size:20px;margin:0}
+.sub{color:var(--dim);margin:4px 0 0;line-height:1.5}
+.sec{border-top:1px solid var(--line);padding-top:12px}
+.lbl{font-family:var(--f-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
+.ptable{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.el{border:1px solid var(--line);border-radius:4px;padding:5px 6px;background:var(--panel);position:relative;overflow:hidden}
+.el .z{font-family:var(--f-mono);font-size:10px;color:var(--dim)}
+.el .s{font-family:var(--f-disp);font-size:16px;font-weight:500;line-height:1.2}
+.el .c{font-family:var(--f-mono);font-size:12px;font-variant-numeric:tabular-nums}
+.el .bar{position:absolute;left:0;bottom:0;height:2px}
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 14px;font-size:13px;margin:0}
+.stats div{display:flex;justify-content:space-between;gap:8px}.stats dd{margin:0;font-family:var(--f-mono);font-variant-numeric:tabular-nums}.stats dt{color:var(--dim)}
+.log{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto;font-size:13px;line-height:1.45}
+.log li{display:grid;grid-template-columns:62px minmax(0,1fr);gap:8px}
+.log time{font-family:var(--f-mono);font-size:11px;color:var(--dim);padding-top:2px;font-variant-numeric:tabular-nums}
+.log li.new{color:var(--star)}
+details{font-size:13px;line-height:1.55;color:var(--dim)}
+summary{cursor:pointer;color:var(--ink);font-weight:500}
+details ul{padding-left:18px;margin:8px 0 0}details li{margin-bottom:4px}
+.perf{font-family:var(--f-mono);font-size:11px;color:var(--dim);margin:0}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
+</style>
+<div class="wrap">
+ <div class="view">
+  <canvas id="cv" aria-label="Simulazione 3D di un universo sferico in espansione: trascina per ruotare, pizzica o usa la rotella per lo zoom"></canvas>
+  <div class="hud-tl"><b id="era">Universo primordiale</b><span id="clock">t = 0</span><span id="phase">In espansione</span></div>
+  <div class="hud-tr"><b id="scale">Scala ×1,0</b><span id="radius">raggio —</span><span class="badge" id="tb" hidden>Turbo</span></div>
+  <div class="toast" id="toast"></div>
+  <div class="ctrl">
+   <button id="play" aria-pressed="false">Pausa</button>
+   <button id="reset">Nuovo Big Bang</button>
+   <button id="turbo" aria-pressed="false">Turbo</button>
+   <div class="seg" role="group" aria-label="Colore delle particelle">
+    <button id="mT" aria-pressed="true">Temperatura</button><button id="mZ" aria-pressed="false">Composizione</button>
+   </div>
+   <button id="spin" aria-pressed="true">Rotazione</button>
+   <label class="speed" for="spd">Velocità <input id="spd" type="range" min="1" max="8" step="1" value="4"><span id="spdv">4×</span></label>
+  </div>
+  <div class="legend" id="legend"></div>
+ </div>
+ <aside>
+  <div>
+   <h1>Universo Genesi III</h1>
+   <p class="sub">Un universo sferico e chiuso che nasce da un Big Bang. Ogni punto è una particella di gas con la sua chimica. Quando la materia si allontana o si avvicina troppo, la simulazione cambia scala da sola.</p>
+  </div>
+  <div class="sec">
+   <p class="lbl">Composizione dell'universo (frazione in massa)</p>
+   <div class="ptable" id="ptable"></div>
+  </div>
+  <div class="sec">
+   <p class="lbl">Stato</p>
+   <dl class="stats" id="stats"></dl>
+  </div>
+  <div class="sec">
+   <p class="lbl">Cronaca</p>
+   <ol class="log" id="log"></ol>
+  </div>
+  <div class="sec">
+   <details>
+    <summary>Le regole del modello</summary>
+    <ul>
+     <li><b>Big Bang</b>: una sfera di idrogeno ed elio (75/25, come dopo la nucleosintesi primordiale) con piccole fluttuazioni di densità e velocità di Hubble v = H·r. L'energia totale è negativa: è un universo chiuso, che prima o poi smette di espandersi.</li>
+     <li><b>Gravità</b> newtoniana esatta tra tutte le coppie di particelle. Le forze vicine vengono ricalcolate a ogni passo, quelle lontane ogni 4.</li>
+     <li><b>Idrodinamica SPH</b>: pressione, compressione che scalda, espansione che raffredda, onde d'urto.</li>
+     <li><b>Raffreddamento</b> radiativo, molto più efficace quando il gas contiene metalli. Il gas densissimo diventa opaco e trattiene il calore.</li>
+     <li><b>Fusione</b> H → He → C → O → metalli → Fe, con soglie di temperatura crescenti nei rapporti reali (circa 1 : 3 : 7 : 11) ed energie di legame reali per nucleone. Quasi tutta l'energia esce come luce stellare, solo una parte scalda il gas.</li>
+     <li><b>Supernova</b> quando il nucleo ha esaurito idrogeno ed elio: espelle e mescola gli elementi pesanti.</li>
+     <li><b>Pianeti</b>: polveri fredde vicino a stelle accese. La loro temperatura segue la legge reale T ∝ (L/d²)^¼. La <b>zona abitabile</b> è dove l'acqua resta liquida, tra 273 e 373 K.</li>
+     <li><b>Vita</b> (la parte ipotetica): nasce con bassa probabilità su pianeti in zona abitabile con acqua e molecole organiche, cresce, si diffonde e muore se la stella esplode.</li>
+     <li><b>Cambio di scala</b>: quando il raggio mediano della materia esce dal campo visivo, vista e unità passano a una scala 1,6 volte più grande (o più piccola, se l'universo si contrae).</li>
+    </ul>
+    <p>Scale e tempi sono compressi enormemente: le leggi sono reali, i numeri no.</p>
+   </details>
+  </div>
+  <p class="perf" id="perf"></p>
+ </aside>
+</div>
+<script type="text/plain" id="wcode">
+function makeSim3(o){
+o=o||{};
+const N=o.n||2000,R0=o.R0||100,G=o.G||0.0015,EPS=o.eps||2.5,GAM=5/3,THETA2=(o.theta||1.0)**2;
+const DT=o.dt||1,VMAX=o.vmax||3,UMIN=o.umin||1e-5,UMAX=o.umax||0.03,HMIN=o.hmin||1.2,NGB=o.ngb||32;
+const NS=7,SP=[{s:'H',c:'#cfe3ff'},{s:'He',c:'#f2d16b'},{s:'C',c:'#bdb6aa'},{s:'N',c:'#6e93ff'},{s:'O',c:'#ff6a5c'},{s:'Mg',c:'#c98a4b'},{s:'Fe',c:'#e0562a'}];
+const F=()=>new Float64Array(N);
+const x=F(),y=F(),z=F(),vx=F(),vy=F(),vz=F(),u=F(),h=F(),rho=F(),P=F(),cnt=F(),ax=F(),ay=F(),az=F(),du=F(),gx=F(),gy=F(),gz=F(),lum=F(),bio=F(),hue=F(),dust=F(),org=F(),wat=F(),snc=F(),teq=F();
+const X=new Float64Array(N*NS),dX=new Float64Array(N*NS),planet=new Uint8Array(N);
+const R=Math.random;
+const S={t:0,time:0,N,SP,x,y,z,u,rho,X,lum,bio,hue,dust,org,wat,planet,teq,h,log:[],seen:{},fx:[],sn:0,lin:0,E:{fus:0,rad:0},stars:0,planets:0,habit:0,lifeP:0,
+ Rview:R0*2,rescales:0,a:1,R90:R0,R90_0:0,cm:[0,0,0],phase:'expansion'};
+const note=(k,m)=>{if(!S.seen[k]){S.seen[k]=1;S.log.push({t:S.t,msg:m});}};
+function rdir(){const c=R()*2-1,a=R()*6.2832,s=Math.sqrt(1-c*c);return[s*Math.cos(a),s*Math.sin(a),c];}
+// condizioni iniziali: sfera di gas H/He (75/25) con fluttuazioni di densità e flusso di Hubble v = H·r
+const seeds=[];for(let k=0;k<(o.seeds||30);k++){const d=rdir(),r=R0*.85*Math.cbrt(R());seeds.push([d[0]*r,d[1]*r,d[2]*r]);}
+for(let i=0;i<N;i++){let p;
+ if(R()<(o.clump||0.6)){const s=seeds[(R()*seeds.length)|0],d=rdir(),r=(o.sr||9)*Math.cbrt(R());p=[s[0]+d[0]*r,s[1]+d[1]*r,s[2]+d[2]*r];}
+ else{do{p=[(R()*2-1)*R0,(R()*2-1)*R0,(R()*2-1)*R0];}while(p[0]*p[0]+p[1]*p[1]+p[2]*p[2]>R0*R0);}
+ x[i]=p[0];y[i]=p[1];z[i]=p[2];u[i]=o.u0||0.0005;h[i]=6;X[i*NS]=0.75;X[i*NS+1]=0.25;hue[i]=-1;}
+const vesc=Math.sqrt(2*G*N/R0),H0=(o.fH||0.85)*vesc/R0;S.H0=H0;
+for(let i=0;i<N;i++){vx[i]=H0*x[i]+(R()-.5)*.02;vy[i]=H0*y[i]+(R()-.5)*.02;vz[i]=H0*z[i]+(R()-.5)*.02;}
+note('bang','Big Bang: una sfera di idrogeno ed elio (75/25) inizia a espandersi');
+// griglia hash senza confini
+const TB=16384,head=new Int32Array(TB),next=new Int32Array(N);let CS=o.cs||4;
+const key=(a,b,c)=>((a*73856093)^(b*19349663)^(c*83492791))&(TB-1);
+function grid(){head.fill(-1);for(let i=0;i<N;i++){const k=key(Math.floor(x[i]/CS),Math.floor(y[i]/CS),Math.floor(z[i]/CS));next[i]=head[k];head[k]=i;}}
+function forNb(i,rmax,fn){const ix=Math.floor(x[i]/CS),iy=Math.floor(y[i]/CS),iz=Math.floor(z[i]/CS),r2m=rmax*rmax;
+ for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++)for(let c=-1;c<=1;c++){const k=key(ix+a,iy+b,iz+c);
+  for(let j=head[k];j>=0;j=next[j]){if(j===i)continue;const dx=x[j]-x[i],dy=y[j]-y[i],dz=z[j]-z[i],r2=dx*dx+dy*dy+dz*dz;if(r2<r2m)fn(j,dx,dy,dz,Math.sqrt(r2));}}}
+// gravità Barnes-Hut (octree)
+const MAXN=N*24,ncx=new Float64Array(MAXN),ncy=new Float64Array(MAXN),ncz=new Float64Array(MAXN),nhs=new Float64Array(MAXN),nm=new Float64Array(MAXN),mx=new Float64Array(MAXN),my=new Float64Array(MAXN),mz=new Float64Array(MAXN),nch=new Int32Array(MAXN),npt=new Int32Array(MAXN);let nn=0;
+function newNode(cx,cy,cz,hs){const k=nn++;ncx[k]=cx;ncy[k]=cy;ncz[k]=cz;nhs[k]=hs;nm[k]=0;mx[k]=0;my[k]=0;mz[k]=0;nch[k]=-1;npt[k]=-1;return k;}
+function sub(k,px,py,pz){return (px>ncx[k]?1:0)|(py>ncy[k]?2:0)|(pz>ncz[k]?4:0);}
+function split(k){const hs=nhs[k]/2,b=nn;for(let c=0;c<8;c++)newNode(ncx[k]+(c&1?hs:-hs),ncy[k]+(c&2?hs:-hs),ncz[k]+(c&4?hs:-hs),hs);nch[k]=b;}
+function build(){nn=0;let mxr=0;for(let i=0;i<N;i++)mxr=Math.max(mxr,Math.abs(x[i]),Math.abs(y[i]),Math.abs(z[i]));const root=newNode(0,0,0,mxr*1.01+1);
+ for(let i=0;i<N;i++){let k=root,d=0;
+  for(;;){nm[k]+=1;mx[k]+=x[i];my[k]+=y[i];mz[k]+=z[i];
+   if(nch[k]<0){if(npt[k]<0&&nm[k]===1){npt[k]=i;break;}
+    if(d>40||nn+8>MAXN)break;const j=npt[k];npt[k]=-2;split(k);if(j>=0){const c=nch[k]+sub(k,x[j],y[j],z[j]);nm[c]+=1;mx[c]+=x[j];my[c]+=y[j];mz[c]+=z[j];npt[c]=j;}}
+   k=nch[k]+sub(k,x[i],y[i],z[i]);d++;
+   if(nch[k]<0&&nm[k]===0){nm[k]=1;mx[k]=x[i];my[k]=y[i];mz[k]=z[i];npt[k]=i;break;}}}
+ for(let k=0;k<nn;k++)if(nm[k]>0){mx[k]/=nm[k];my[k]/=nm[k];mz[k]/=nm[k];}}
+const stack=new Int32Array(4096);
+const fx_=F(),fy_=F(),fz_=F(),nx_=F(),ny_=F(),nz_=F();const RN=o.rn||4;
+function nearGrav(ox,oy,oz){ox.fill(0);oy.fill(0);oz.fill(0);const e2=EPS*EPS,rn2=RN*RN;
+ for(let i=0;i<N;i++){const xi=x[i],yi=y[i],zi=z[i],ix=Math.floor(xi/CS),iy=Math.floor(yi/CS),iz=Math.floor(zi/CS);let fx=0,fy=0,fz=0;
+  for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++)for(let c=-1;c<=1;c++){const k=key(ix+a,iy+b,iz+c);
+   for(let j=head[k];j>=0;j=next[j]){if(j<=i)continue;const dx=x[j]-xi,dy=y[j]-yi,dz=z[j]-zi,r2=dx*dx+dy*dy+dz*dz;if(r2>=rn2)continue;const q=r2+e2,f=G/(q*Math.sqrt(q));fx+=f*dx;fy+=f*dy;fz+=f*dz;ox[j]-=f*dx;oy[j]-=f*dy;oz[j]-=f*dz;}}
+  ox[i]+=fx;oy[i]+=fy;oz[i]+=fz;}}
+function farGrav(){fx_.fill(0);fy_.fill(0);fz_.fill(0);const e2=EPS*EPS;
+ for(let i=0;i<N;i++){const xi=x[i],yi=y[i],zi=z[i];let fx=0,fy=0,fz=0;
+  for(let j=i+1;j<N;j++){const dx=x[j]-xi,dy=y[j]-yi,dz=z[j]-zi,q=dx*dx+dy*dy+dz*dz+e2,f=G/(q*Math.sqrt(q));fx+=f*dx;fy+=f*dy;fz+=f*dz;fx_[j]-=f*dx;fy_[j]-=f*dy;fz_[j]-=f*dz;}
+  fx_[i]+=fx;fy_[i]+=fy;fz_[i]+=fz;}
+ nearGrav(nx_,ny_,nz_);for(let i=0;i<N;i++){fx_[i]-=nx_[i];fy_[i]-=ny_[i];fz_[i]-=nz_[i];}}
+function gravity(full){if(full)farGrav();nearGrav(gx,gy,gz);for(let i=0;i<N;i++){gx[i]+=fx_[i];gy[i]+=fy_[i];gz[i]+=fz_[i];}}
+function W(r,hh){const q=r/hh;if(q>=1)return 0;const s=8/(Math.PI*hh*hh*hh);return q<.5?s*(1-6*q*q+6*q*q*q):s*2*(1-q)**3;}
+function dW(r,hh){const q=r/hh;if(q>=1)return 0;const s=8/(Math.PI*hh*hh*hh*hh);return q<.5?s*(-12*q+18*q*q):s*(-6*(1-q)*(1-q));}
+// combustione nucleare: energie di legame reali per nucleone (MeV) H→He 7.07, He→C 0.61, C→O 0.30, O→Mg 0.28, Mg→Fe 0.53
+const T1=o.T1||0.0018,T2=o.T2||0.006,T3=o.T3||0.012,T4=o.T4||0.02,K1=o.K1||0.0006,RHO1=o.rho1||0.5,QS=o.Q||0.003;
+function burn(i){const T=u[i],r=rho[i];lum[i]=0;if(T<T1||r<RHO1||snc[i]>0)return;const b=i*NS,dtr=DT*Math.min(20,r/RHO1);let e=0,d;
+ d=Math.min(X[b],K1*dtr*X[b]*X[b]*Math.pow(T/T1,4)*.25);X[b]-=d;X[b+1]+=d;e+=d*7.07;
+ if(X[b+2]>0){const dc=Math.min(X[b+2],d*4*X[b+2]);X[b+2]-=dc;X[b+3]+=dc;}
+ if(T>T2){const f=Math.pow(T/T2,4);d=Math.min(X[b+1],K1*dtr*X[b+1]**3*f*.5);X[b+1]-=d;X[b+2]+=d;e+=d*.61;if(d>1e-6)note('c','Nasce il carbonio: l\'elio brucia nel nucleo di una stella');
+  const d2=Math.min(X[b+2],K1*dtr*X[b+2]*X[b+1]*f*.5);X[b+2]-=d2;X[b+4]+=d2;e+=d2*.3;if(d2>1e-6)note('o','Nasce l\'ossigeno');}
+ if(T>T3){const f=Math.pow(T/T3,4);d=Math.min(X[b+4],K1*.1*dtr*X[b+4]**2*f);X[b+4]-=d;X[b+5]+=d;e+=d*.28;if(d>1e-5)note('mg','Nascono i metalli (Mg, Si)');}
+ if(T>T4){const f=Math.pow(T/T4,4);d=Math.min(X[b+5],K1*.3*dtr*X[b+5]*f);X[b+5]-=d;X[b+6]+=d;e+=d*.53;if(d>1e-5)note('fe','Nasce il ferro: la stella è alla fine');}
+ if(e>0){const tc=1.25*(T>T4?T4:T>T3?T3:T>T2?T2:T1);du[i]+=Math.max(0,Math.min(e*QS*(o.fh||0.1),tc-u[i]))/DT;S.E.rad+=e*QS;lum[i]=e;S.E.fus+=e*QS;note('fus','Prima stella: il gas collassa, si scalda e fonde idrogeno in elio');}}
+function supernova(i){S.sn++;note('sn','Prima supernova: la stella esplode e semina gli elementi pesanti');
+ const b=i*NS,ej=[];for(let k=0;k<NS;k++)ej.push(X[b+k]);const nb=[],rs=Math.max(h[i]*2,3);
+ forNb(i,rs,(j,dx,dy,dz,r)=>nb.push([j,dx,dy,dz,r]));const share=nb.length?.6/nb.length:0;
+ for(const [j,dx,dy,dz,r] of nb){const jb=j*NS;for(let k=0;k<NS;k++)X[jb+k]=X[jb+k]*(1-share)+ej[k]*share;
+  const kk=(o.snk||0.06)/(1+r/3);vx[j]+=dx/(r||1)*kk;vy[j]+=dy/(r||1)*kk;vz[j]+=dz/(r||1)*kk;u[j]=Math.min(UMAX,u[j]+(o.snu||0.01));bio[j]*=.1;snc[j]=Math.max(snc[j],o.snCool||200);}
+ X[b+6]*=.4;X[b+5]*=.6;let s=0;for(let k=0;k<NS;k++)s+=X[b+k];X[b]+=1-s;u[i]=Math.min(UMAX,u[i]+(o.snu||0.01)*2);bio[i]=0;snc[i]=300;
+ S.fx.push({x:x[i],y:y[i],z:z[i],r:1,max:Math.max(25,S.Rview*.25),c:'255,190,110'});}
+function chem(i){const T=u[i],b=i*NS,cold=T<(o.Tmol||0.004);
+ wat[i]=cold?Math.min(X[b]*.5,X[b+4]):0;org[i]=cold?Math.min(X[b+2],X[b+4]*.6,X[b+3]*4,X[b]*.2):0;dust[i]=T<(o.Tdust||0.008)?Math.min(X[b+5]+X[b+6],X[b+4]*.8):0;
+ if(wat[i]>.001)note('h2o','Prima acqua: in una nube fredda H e O formano H₂O');if(org[i]>.0003)note('org','Prime molecole organiche (C, H, N, O)');}
+// pianeti e zona abitabile: temperatura di equilibrio T = T0·(L/d²)^(1/4), acqua liquida tra 273 e 373 K
+function life(){let pl=0,hz=0,lp=0;const starIdx=[];for(let i=0;i<N;i++)if(lum[i]>(o.lumStar||2e-5))starIdx.push(i);const T0=o.T0||278,F0=o.F0||2e-5;
+ for(let i=0;i<N;i++){planet[i]=0;teq[i]=0;
+  if(dust[i]>(o.dustP||0.00002)&&lum[i]===0){let Fl=0;for(const j of starIdx){const dx=x[j]-x[i],dy=y[j]-y[i],dz=z[j]-z[i],d2=dx*dx+dy*dy+dz*dz;if(d2<400)Fl+=lum[j]/(d2+.25);}
+   if(Fl>F0*.02){planet[i]=1;pl++;teq[i]=T0*Math.pow(Fl/F0,.25);note('planet','Primo sistema planetario: polveri fredde in orbita attorno a una stella');
+    if(teq[i]>=273&&teq[i]<=373){hz++;note('hz','Primo pianeta nella zona abitabile: acqua liquida in superficie');}}}
+  const hab=planet[i]&&teq[i]>=273&&teq[i]<=373&&wat[i]>(o.watMin||0.0003)&&org[i]>(o.orgMin||0.00005);
+  if(bio[i]>0){const K=Math.min(1,org[i]/(o.orgK||0.001));if(hab)bio[i]+=(o.gr||0.05)*bio[i]*(1-bio[i]/Math.max(K,.05));else bio[i]-=bio[i]*(teq[i]>500||u[i]>.05?.4:.01);
+   if(bio[i]<.001){bio[i]=0;hue[i]=-1;}else{lp++;if(bio[i]>.4)forNb(i,h[i],(j)=>{if(bio[j]===0&&planet[j]&&R()<(o.spread||0.03)){bio[j]=.01;hue[j]=(hue[i]+(R()-.5)*30+360)%360;note('spread','La vita si diffonde su un pianeta vicino');}});}}
+  else if(hab&&R()<(o.pAbio||0.03)){bio[i]=.01;hue[i]=R()*360;S.lin++;lp++;note('life','Prima forma di vita: chimica organica in acqua liquida diventa autoreplicante');}}
+ S.planets=pl;S.habit=hz;S.lifeP=lp;}
+// riqualificazione della scala: quando la materia si allontana, la vista e la griglia passano a una scala più grande
+function rescale(){let cx=0,cy=0,cz=0;for(let i=0;i<N;i++){cx+=x[i];cy+=y[i];cz+=z[i];}cx/=N;cy/=N;cz/=N;S.cm=[cx,cy,cz];
+ const d=new Float64Array(N);for(let i=0;i<N;i++)d[i]=Math.hypot(x[i]-cx,y[i]-cy,z[i]-cz);d.sort();S.R90=d[(N*(o.pct||0.5))|0];if(!S.R90_0)S.R90_0=S.R90;S.a=S.R90/S.R90_0;
+ const prev=S._Rp||S.R90;S._Rp=S.R90;const dr=(S.R90-prev)/prev;S._dr=(S._dr||0)*.7+dr*.3;
+ const ph=S._dr>0.002?'expansion':S._dr<-0.002?'collapse':'turn';if(ph!==S.phase&&S.t>200){if(ph==='turn'&&S.phase==='expansion')note('turn','L\'espansione rallenta: la gravità sta vincendo');if(ph==='collapse')note('crunch','L\'universo ha iniziato a ricollassare');if(ph==='expansion'&&S.seen.crunch)note('bounce','Rimbalzo: il gas scaldato dal collasso e dalle supernove si riespande');}S.phase=ph;
+ if(S.R90>S.Rview*.45){S.Rview*=1.6;S.rescales++;S.log.push({t:S.t,msg:`Riqualificazione: la scala passa a ×${(S.Rview/(R0*2)).toFixed(1)}, l'universo si è espanso`});}
+ else if(S.R90<S.Rview*.17&&S.Rview>R0*1.5){S.Rview/=1.6;S.rescales++;S.log.push({t:S.t,msg:`Riqualificazione: la scala torna a ×${(S.Rview/(R0*2)).toFixed(1)}, l'universo si contrae`});}
+ CS=o.cs||4;}
+function step(){S.t++;S.time+=DT;if(S.t%25===1)rescale();grid();const HM=CS;
+ const MNB=o.mnb||160;let nbl=S._nbl;if(!nbl||nbl.length<N*MNB){S._nbl=nbl=new Int32Array(N*MNB);S._nbr=new Float32Array(N*MNB);S._nbx=new Float32Array(N*MNB);S._nby=new Float32Array(N*MNB);S._nbz=new Float32Array(N*MNB);S._nbc=new Int32Array(N);}
+ const nbr=S._nbr,nbx=S._nbx,nby=S._nby,nbz=S._nbz,nbc=S._nbc;const PI8=8/Math.PI;
+ for(let i=0;i<N;i++){const base=i*MNB;let c=0;const xi=x[i],yi=y[i],zi=z[i],ix=Math.floor(xi/CS),iy=Math.floor(yi/CS),iz=Math.floor(zi/CS),r2m=HM*HM;
+  for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++)for(let cc=-1;cc<=1;cc++){const k=key(ix+a,iy+b,iz+cc);
+   for(let j=head[k];j>=0;j=next[j]){if(j<=i)continue;const dx=x[j]-xi,dy=y[j]-yi,dz=z[j]-zi,r2=dx*dx+dy*dy+dz*dz;const hh=(h[i]+h[j])*.5;if(r2<hh*hh&&c<MNB){nbl[base+c]=j;nbr[base+c]=Math.sqrt(r2);nbx[base+c]=dx;nby[base+c]=dy;nbz[base+c]=dz;c++;}}}
+  nbc[i]=c;}
+ for(let i=0;i<N;i++){const hi=h[i];rho[i]=PI8/(hi*hi*hi);cnt[i]=0;}
+ for(let i=0;i<N;i++){const base=i*MNB,hi=h[i];for(let n=0;n<nbc[i];n++){const j=nbl[base+n],r=nbr[base+n],hh=(hi+h[j])*.5;if(r<hh){const q=r/hh,w=PI8/(hh*hh*hh)*(q<.5?1-6*q*q+6*q*q*q:2*(1-q)**3);rho[i]+=w;rho[j]+=w;cnt[i]++;cnt[j]++;}}}
+ for(let i=0;i<N;i++){P[i]=(GAM-1)*rho[i]*u[i];h[i]=Math.max(HMIN,Math.min(HM,h[i]*Math.pow((NGB+1)/(cnt[i]+1),.15)));}
+ ax.fill(0);ay.fill(0);az.fill(0);du.fill(0);dX.fill(0);const mixk=o.mix||0.002,GG=GAM*(GAM-1);
+ for(let i=0;i<N;i++){const pi=P[i]/(rho[i]*rho[i]),ci=Math.sqrt(GG*u[i]),hi=h[i],base=i*MNB,ib=i*NS;
+  for(let n=0;n<nbc[i];n++){const j=nbl[base+n],r=nbr[base+n],hh=(hi+h[j])*.5;if(r>=hh||r===0)continue;const dx=nbx[base+n],dy=nby[base+n],dz=nbz[base+n];
+   const q=r/hh,h4=hh*hh*hh*hh,g=PI8/h4*(q<.5?-12*q+18*q*q:-6*(1-q)*(1-q))/r,pj=P[j]/(rho[j]*rho[j]);
+   const vr=-((vx[i]-vx[j])*dx+(vy[i]-vy[j])*dy+(vz[i]-vz[j])*dz);let pv=0;
+   if(vr<0){const mu=hh*vr/(r*r+.01*hh*hh),cb=(ci+Math.sqrt(GG*u[j]))*.5,rb=(rho[i]+rho[j])*.5;pv=(-cb*mu+2*mu*mu)/rb;}
+   const f=(pi+pj+pv)*g;ax[i]+=f*dx;ay[i]+=f*dy;az[i]+=f*dz;ax[j]-=f*dx;ay[j]-=f*dy;az[j]-=f*dz;
+   const w=vr*g;du[i]+=(pi+pv*.5)*w;du[j]+=(pj+pv*.5)*w;
+   const wk=PI8/(hh*hh*hh)*(q<.5?1-6*q*q+6*q*q*q:2*(1-q)**3),wm=mixk*wk/Math.max(rho[i],rho[j]),jb=j*NS;for(let k=0;k<NS;k++){const d=(X[jb+k]-X[ib+k])*wm;dX[ib+k]+=d;dX[jb+k]-=d;}}}
+ for(let k=0;k<N*NS;k++)X[k]+=dX[k];
+ gravity(S.t%(o.gEvery||4)===0||S.t===1);
+ for(let i=0;i<N;i++)burn(i);
+ const lam=o.lam||0.3,rt=o.rhoThick||3,vd=o.vdamp||0.9997;let rad=0;
+ for(let i=0;i<N;i++){vx[i]+=(ax[i]+gx[i])*DT;vy[i]+=(ay[i]+gy[i])*DT;vz[i]+=(az[i]+gz[i])*DT;
+  if(rho[i]>RHO1*.05){vx[i]*=vd;vy[i]*=vd;vz[i]*=vd;}
+  const v=Math.hypot(vx[i],vy[i],vz[i]);if(v>VMAX){vx[i]*=VMAX/v;vy[i]*=VMAX/v;vz[i]*=VMAX/v;}
+  x[i]+=vx[i]*DT;y[i]+=vy[i]*DT;z[i]+=vz[i]*DT;
+  let un=u[i]+du[i]*DT;const met=1+(o.metK||300)*(1-X[i*NS]-X[i*NS+1]),re=rho[i]/(1+(rho[i]/rt)**2);
+  const cool=lam*re*met*Math.max(0,un-UMIN)*Math.sqrt(Math.max(un,1e-8))*DT;un-=Math.min(cool,(un-UMIN)*.5);rad+=Math.max(0,cool);
+  u[i]=Math.max(UMIN,Math.min(UMAX,un));if(snc[i]>0)snc[i]--;if(snc[i]<=0&&(X[i*NS+6]>(o.feSN||0.005)||(rho[i]>RHO1&&X[i*NS]+X[i*NS+1]<(o.zSN||0.6))))supernova(i);}
+ S.E.rad+=rad;let st=0;for(let i=0;i<N;i++)if(lum[i]>(o.lumStar||2e-5))st++;S.stars=st;
+ if(S.t%5===0){for(let i=0;i<N;i++)chem(i);life();}
+ for(const f of S.fx)f.r+=f.max/18;S.fx=S.fx.filter(f=>f.r<f.max);}
+S.step=step;
+S.totals=()=>{const t=new Array(NS).fill(0);for(let i=0;i<N;i++)for(let k=0;k<NS;k++)t[k]+=X[i*NS+k];return t.map(v=>v/N);};
+S.temp=()=>{let s=0;for(let i=0;i<N;i++)s+=u[i];return s/N;};
+return S;}
+
+
+let S=null,running=true,maxSteps=4,turbo=false,lastLog=0,msStep=0;
+function snapshot(){const N=S.N,b=new Float32Array(N*9);
+ for(let i=0;i<N;i++){const k=i*9,xb=i*7;b[k]=S.x[i];b[k+1]=S.y[i];b[k+2]=S.z[i];b[k+3]=S.u[i];b[k+4]=1-S.X[xb]-S.X[xb+1];b[k+5]=S.lum[i];b[k+6]=S.bio[i];b[k+7]=S.hue[i];b[k+8]=S.planet[i]?(S.teq[i]||1):0;}
+ const logs=S.log.slice(lastLog);lastLog=S.log.length;
+ postMessage({buf:b,N,st:{t:S.t,stars:S.stars,sn:S.sn,planets:S.planets,habit:S.habit,lifeP:S.lifeP,lin:S.lin,tot:S.totals(),temp:S.temp(),Rview:S.Rview,R:S.R90,R0:S.R90_0,phase:S.phase,cm:S.cm,E:S.E,seenLife:!!S.seen.life,ms:msStep,crunch:!!S.seen.crunch},logs,fx:S.fx.map(f=>[f.x,f.y,f.z,f.r,f.max])},[b.buffer]);}
+function tick(){if(S&&running){const t0=performance.now();let n=0;const budget=turbo?250:28,cap=turbo?100000:maxSteps;
+  while(n<cap){S.step();n++;if(performance.now()-t0>budget)break;}msStep=msStep?msStep*.8+((performance.now()-t0)/n)*.2:(performance.now()-t0)/n;}
+ if(S)snapshot();setTimeout(tick,running?0:100);}
+onmessage=e=>{const m=e.data;if(m.cmd==='init'){S=makeSim3({});lastLog=0;}else if(m.cmd==='run')running=m.on;else if(m.cmd==='speed')maxSteps=m.v;else if(m.cmd==='turbo')turbo=m.on;};
+S=makeSim3({});tick();
+</script>
+<script>
+(function(){
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),$=id=>document.getElementById(id);
+let run=true,spin=true,turbo=false,mode='T',yaw=0.6,pitch=0.35,zoom=1,toastT=0,lastDraw=0;
+let snap=null,viewR=200,cam=[0,0,0];const logItems=[];
+if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){spin=false;$('spin').setAttribute('aria-pressed','false');}
+const TR=[[60,20,90],[150,30,50],[220,80,40],[255,150,60],[255,215,150],[255,248,235],[205,222,255],[150,180,255]];
+const ZR=[[110,140,215],[160,175,225],[215,190,140],[245,140,70],[235,80,40]];
+function ramp(R,t){t=Math.max(0,Math.min(.9999,t))*(R.length-1);const i=t|0,f=t-i,a=R[i],b=R[i+1];return`rgb(${a[0]+(b[0]-a[0])*f|0},${a[1]+(b[1]-a[1])*f|0},${a[2]+(b[2]-a[2])*f|0})`;}
+const NB=24,colT=[],colZ=[];for(let i=0;i<NB;i++){colT.push(ramp(TR,i/(NB-1)));colZ.push(ramp(ZR,i/(NB-1)));}
+const glow=(()=>{const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d'),g=x.createRadialGradient(32,32,0,32,32,32);g.addColorStop(0,'rgba(255,255,245,1)');g.addColorStop(.15,'rgba(255,235,180,.85)');g.addColorStop(.45,'rgba(255,190,100,.18)');g.addColorStop(1,'rgba(255,160,80,0)');x.fillStyle=g;x.fillRect(0,0,64,64);return c;})();
+function legend(){const css=R=>'linear-gradient(90deg,'+R.map(c=>`rgb(${c})`).join(',')+')';
+ $('legend').innerHTML=(mode==='T'?`<span>Freddo<i class="ramp" style="background:${css(TR)}"></i>Caldissimo</span>`:`<span>Solo H e He<i class="ramp" style="background:${css(ZR)}"></i>Ricco di metalli</span>`)+`<span><i class="dot" style="background:#fff3c4;box-shadow:0 0 6px #ffd27a"></i>Stella</span><span><i class="dot" style="border:1.5px solid #c98a4b"></i>Pianeta</span><span><i class="dot" style="border:1.5px solid #6fd3ff"></i>Zona abitabile</span><span><i class="dot" style="border:1.5px solid var(--life)"></i>Vita</span>`;}
+const SPS=['H','He','C','N','O','Mg','Fe'],SPC=['#cfe3ff','#f2d16b','#bdb6aa','#6e93ff','#ff6a5c','#c98a4b','#e0562a'],ZN=['1','2','6','7','8','12','26'];
+$('ptable').innerHTML=SPS.map((s,i)=>`<div class="el"><div class="z">${ZN[i]}</div><div class="s" style="color:${SPC[i]}">${s}</div><div class="c" id="c${i}">0</div><div class="bar" id="b${i}" style="background:${SPC[i]}"></div></div>`).join('')+`<div class="el"><div class="z">Z</div><div class="s">Metalli</div><div class="c" id="cZ">0</div></div>`;
+// motore: Web Worker se disponibile, altrimenti thread principale
+let worker=null,local=null;
+function post(m){if(worker)worker.postMessage(m);else if(local)local.onmsg(m);}
+try{const code=$('wcode').textContent;worker=new Worker(URL.createObjectURL(new Blob([code],{type:'text/javascript'})));worker.onmessage=e=>onSnap(e.data);worker.onerror=()=>{worker=null;startLocal();};}catch(e){worker=null;startLocal();}
+function startLocal(){if(local)return;const src=$('wcode').textContent.replace('S=makeSim3({});tick();','').replace(/postMessage\(/g,'__post(').replace(/onmessage=/,'__onmsg=');
+ const f=new Function('__post','setTimeout',src+';return {start:()=>{S=makeSim3({});tick();},onmsg:m=>__onmsg({data:m})};');local=f(d=>onSnap(d),(fn,ms)=>setTimeout(fn,ms+16));local.start();}
+function onSnap(d){snap=d;if(d.logs&&d.logs.length){for(const l of d.logs)addLog(l);}}
+function addLog(l){const ol=$('log');ol.querySelectorAll('.new').forEach(e=>e.classList.remove('new'));const li=document.createElement('li');li.className='new';li.innerHTML=`<time>${l.t.toLocaleString('it-IT')}</time><span></span>`;li.lastChild.textContent=l.msg;ol.appendChild(li);ol.scrollTop=ol.scrollHeight;if(l.t>0){$('toast').textContent=l.msg;$('toast').style.opacity=1;toastT=performance.now();}}
+function size(){const d=Math.min(2,window.devicePixelRatio||1),w=cv.clientWidth;cv.width=w*d;cv.height=w*d;}
+window.addEventListener('resize',size);
+let drag=null,pinch=0;
+cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);drag={x:e.clientX,y:e.clientY};});
+cv.addEventListener('pointermove',e=>{if(!drag)return;yaw+=(e.clientX-drag.x)*.008;pitch=Math.max(-1.4,Math.min(1.4,pitch+(e.clientY-drag.y)*.008));drag={x:e.clientX,y:e.clientY};});
+cv.addEventListener('pointerup',()=>drag=null);cv.addEventListener('pointercancel',()=>drag=null);
+cv.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.4,Math.min(5,zoom*(e.deltaY<0?1.1:.9)));},{passive:false});
+cv.addEventListener('touchmove',e=>{if(e.touches.length===2){const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);if(pinch)zoom=Math.max(.4,Math.min(5,zoom*d/pinch));pinch=d;drag=null;}},{passive:true});
+cv.addEventListener('touchend',()=>pinch=0);
+const tog=(id,v)=>$(id).setAttribute('aria-pressed',String(v));
+$('play').onclick=()=>{run=!run;$('play').textContent=run?'Pausa':'Avvia';tog('play',!run);post({cmd:'run',on:run});};
+$('reset').onclick=()=>{$('log').innerHTML='';post({cmd:'init'});};
+$('turbo').onclick=()=>{turbo=!turbo;tog('turbo',turbo);$('tb').hidden=!turbo;post({cmd:'turbo',on:turbo});};
+$('spin').onclick=()=>{spin=!spin;tog('spin',spin);};
+$('mT').onclick=()=>{mode='T';tog('mT',true);tog('mZ',false);legend();};
+$('mZ').onclick=()=>{mode='Z';tog('mZ',true);tog('mT',false);legend();};
+$('spd').oninput=e=>{const v=+e.target.value;$('spdv').textContent=v+'×';post({cmd:'speed',v});};
+function draw(){
+ const W=cv.width;ctx.globalCompositeOperation='source-over';ctx.fillStyle='#04050a';ctx.fillRect(0,0,W,W);if(!snap)return;
+ const st=snap.st,b=snap.buf,N=snap.N;
+ viewR+=(st.Rview*.5-viewR)*.06;for(let k=0;k<3;k++)cam[k]+=(st.cm[k]-cam[k])*.1;
+ const cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch),D=viewR*3.2,FOV=W*.5*zoom*D/(viewR*1.15);
+ const pr=(x,y,z)=>{x-=cam[0];y-=cam[1];z-=cam[2];const x1=x*cy-z*sy,z1=x*sy+z*cy,y1=y*cp-z1*sp,z2=y*sp+z1*cp,f=FOV/(D+z2);return[W/2+x1*f,W/2+y1*f,f,z2];};
+ // sfera di riferimento della scala attuale
+ const ring=pr(cam[0],cam[1],cam[2]);ctx.strokeStyle='rgba(120,130,175,.16)';ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.beginPath();ctx.arc(W/2,W/2,viewR*FOV/D,0,6.283);ctx.stroke();ctx.setLineDash([]);
+ ctx.globalCompositeOperation='lighter';const ps=Math.max(1.2,W/520);
+ const PX=new Float32Array(N),PY=new Float32Array(N),PF=new Float32Array(N);
+ for(let i=0;i<N;i++){const k=i*9,q=pr(b[k],b[k+1],b[k+2]);PX[i]=q[0];PY[i]=q[1];PF[i]=q[2];if(q[3]<-D*.95)continue;
+  let c;if(mode==='T'){c=colT[Math.max(0,Math.min(NB-1,Math.round((Math.log10(Math.max(b[k+3],1e-5))+5)/3.6*(NB-1))))];}else{c=colZ[Math.max(0,Math.min(NB-1,Math.round(Math.min(1,Math.sqrt(b[k+4]/.15))*(NB-1))))];}
+  const s=ps*Math.max(.7,Math.min(2.2,q[2]/(FOV/D)));ctx.fillStyle=c;ctx.globalAlpha=.85;ctx.fillRect(q[0]-s/2,q[1]-s/2,s,s);}
+ ctx.globalAlpha=1;
+ for(let i=0;i<N;i++){const L=b[i*9+5];if(L>0){const r=Math.max(3,Math.min(26,(4+Math.sqrt(L)*60)))*ps*.6;ctx.drawImage(glow,PX[i]-r,PY[i]-r,r*2,r*2);}}
+ ctx.globalCompositeOperation='source-over';
+ for(let i=0;i<N;i++){const k=i*9,te=b[k+8];
+  if(te>0){const hz=te>=273&&te<=373;ctx.strokeStyle=hz?'rgba(111,211,255,.95)':'rgba(201,138,75,.85)';ctx.lineWidth=Math.max(1,W/700);ctx.beginPath();ctx.arc(PX[i],PY[i],ps*2.6,0,6.283);ctx.stroke();}
+  if(b[k+6]>0){ctx.strokeStyle=`hsla(${b[k+7]},85%,62%,${.45+.55*Math.min(1,b[k+6])})`;ctx.lineWidth=Math.max(1.5,W/450);ctx.beginPath();ctx.arc(PX[i],PY[i],ps*4.5,0,6.283);ctx.stroke();}}
+ for(const f of snap.fx){const q=pr(f[0],f[1],f[2]),a=1-f[3]/f[4];ctx.strokeStyle=`rgba(255,190,110,${a*.85})`;ctx.lineWidth=Math.max(1,W/450);ctx.beginPath();ctx.arc(q[0],q[1],f[3]*q[2],0,6.283);ctx.stroke();}
+}
+const pct=v=>v>=.1?(v*100).toFixed(1)+'%':v>=.001?(v*100).toFixed(2)+'%':v>0?(v*100).toFixed(3)+'%':'0%';
+const fmt=n=>n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e4?(n/1e3).toFixed(0)+'k':n>=100?Math.round(n).toLocaleString('it-IT'):n.toFixed(2);
+const PH={expansion:'In espansione',turn:'Espansione al culmine',collapse:'In contrazione'};
+function era(s){if(s.lifeP>0)return'Era della vita';if(s.seenLife)return'La vita è comparsa';if(s.habit>0)return'Pianeti abitabili';if(s.planets>0)return'Sistemi planetari';if(s.sn>0)return s.stars>0?'Nuove generazioni di stelle':'Dopo le supernove';if(s.stars>0)return'Prime stelle';return'Universo primordiale';}
+function hud(){if(!snap)return;const s=snap.st,t=s.tot;
+ for(let i=0;i<7;i++){$('c'+i).textContent=pct(t[i]);$('b'+i).style.width=Math.min(100,Math.sqrt(t[i])*100)+'%';}
+ $('cZ').textContent=pct(1-t[0]-t[1]);$('era').textContent=era(s);$('clock').textContent='t = '+s.t.toLocaleString('it-IT')+' passi';$('phase').textContent=PH[s.phase]||'';
+ $('scale').textContent='Scala ×'+(s.Rview/200).toLocaleString('it-IT',{maximumFractionDigits:1,minimumFractionDigits:1});
+ $('radius').textContent='raggio mediano '+Math.round(s.R)+' · a = '+(s.R0?(s.R/s.R0).toFixed(2):'1,00');
+ $('stats').innerHTML=[['Stelle accese',s.stars],['Supernove',s.sn],['Pianeti',s.planets],['In zona abitabile',s.habit],['Pianeti con vita',s.lifeP],['Stirpi nate',s.lin],['Temperatura media',s.temp.toExponential(1)],['Luce emessa',fmt(s.E.rad)]].map(([a,v])=>`<div><dt>${a}</dt><dd>${v}</dd></div>`).join('');
+ $('perf').textContent=`${snap.N.toLocaleString('it-IT')} particelle · ${s.ms.toFixed(1)} ms per passo · ${worker?'thread separato':'thread principale'}`;
+ if(performance.now()-toastT>4500)$('toast').style.opacity=0;}
+let frame=0;
+function loop(now){if(spin&&!drag)yaw+=.0018;if(!turbo||now-lastDraw>500){draw();lastDraw=now;}if(frame++%8===0)hud();requestAnimationFrame(loop);}
+size();legend();requestAnimationFrame(loop);
+})();
+</script>

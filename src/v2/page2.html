@@ -1,0 +1,193 @@
+<title>Universo Genesi II</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* layout: osservatorio — viewport 3D a sinistra, strumentazione a destra; impilati su telefono */
+:root{
+ --void:#05060b; --panel:#0c0e16; --line:#1e2232; --ink:#e7e9f3; --dim:#8b90a9; --star:#ffd27a; --life:#7af0c4;
+ --f-disp:'Unbounded',system-ui,sans-serif; --f-body:'IBM Plex Sans',system-ui,sans-serif; --f-mono:'IBM Plex Mono',ui-monospace,monospace;
+ color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--void);color:var(--ink);font-family:var(--f-body);font-size:14px;margin:0}
+.wrap{display:grid;grid-template-columns:minmax(0,1fr) 350px;gap:16px;padding-block:16px;padding-inline:16px;max-width:1400px;margin:0 auto;box-sizing:border-box}
+@media (max-width:860px){.wrap{grid-template-columns:minmax(0,1fr)}}
+.view{position:relative;min-width:0}
+canvas{display:block;width:100%;aspect-ratio:1;max-width:100%;border:1px solid var(--line);border-radius:6px;background:var(--void);touch-action:none;cursor:grab}
+canvas:active{cursor:grabbing}
+.era{position:absolute;left:14px;top:12px;pointer-events:none}
+.era b{display:block;font-family:var(--f-disp);font-weight:500;font-size:15px;letter-spacing:.02em}
+.era span{font-family:var(--f-mono);font-size:12px;color:var(--dim)}
+.turbo-badge{position:absolute;right:14px;top:12px;font-family:var(--f-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--star);border:1px solid var(--star);border-radius:4px;padding:3px 6px;pointer-events:none}
+.toast{position:absolute;left:14px;right:14px;bottom:12px;font-size:13px;color:var(--star);pointer-events:none;transition:opacity .6s;text-shadow:0 0 6px #000}
+.ctrl{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center}
+button{font:500 13px var(--f-body);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:8px 12px;cursor:pointer}
+button:hover{border-color:#3a4060}
+button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--star);outline-offset:2px}
+button[aria-pressed="true"]{border-color:var(--star);color:var(--star)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:5px;overflow:hidden}
+.seg button{border:0;border-radius:0;border-right:1px solid var(--line)}.seg button:last-child{border-right:0}
+.speed{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dim)}
+input[type=range]{accent-color:var(--star);width:100px}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--dim);margin-top:10px;align-items:center}
+.ramp{display:inline-block;width:90px;height:8px;border-radius:2px;vertical-align:-1px;margin:0 6px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+aside{display:flex;flex-direction:column;gap:14px;min-width:0}
+h1{font-family:var(--f-disp);font-weight:700;font-size:20px;margin:0}
+.sub{color:var(--dim);margin:4px 0 0;line-height:1.5}
+.sec{border-top:1px solid var(--line);padding-top:12px}
+.lbl{font-family:var(--f-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:0 0 8px}
+.ptable{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.el{border:1px solid var(--line);border-radius:4px;padding:5px 6px;background:var(--panel);position:relative;overflow:hidden}
+.el .z{font-family:var(--f-mono);font-size:10px;color:var(--dim)}
+.el .s{font-family:var(--f-disp);font-size:16px;font-weight:500;line-height:1.2}
+.el .c{font-family:var(--f-mono);font-size:12px;font-variant-numeric:tabular-nums}
+.el .bar{position:absolute;left:0;bottom:0;height:2px}
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 14px;font-size:13px;margin:0}
+.stats div{display:flex;justify-content:space-between;gap:8px}.stats dd{margin:0;font-family:var(--f-mono);font-variant-numeric:tabular-nums}.stats dt{color:var(--dim)}
+.log{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto;font-size:13px;line-height:1.45}
+.log li{display:grid;grid-template-columns:62px minmax(0,1fr);gap:8px}
+.log time{font-family:var(--f-mono);font-size:11px;color:var(--dim);padding-top:2px;font-variant-numeric:tabular-nums}
+.log li.new{color:var(--star)}
+details{font-size:13px;line-height:1.55;color:var(--dim)}
+summary{cursor:pointer;color:var(--ink);font-weight:500}
+details ul{padding-left:18px;margin:8px 0 0}details li{margin-bottom:4px}
+.perf{font-family:var(--f-mono);font-size:11px;color:var(--dim)}
+@media (prefers-reduced-motion:reduce){.toast{transition:none}}
+</style>
+<div class="wrap">
+ <div class="view">
+  <canvas id="cv" aria-label="Simulazione 3D di nubi di gas che formano stelle, pianeti e vita: trascina per ruotare, pizzica o usa la rotella per lo zoom"></canvas>
+  <div class="era"><b id="era">Universo primordiale</b><span id="clock">t = 0</span></div>
+  <div class="turbo-badge" id="tb" hidden>Turbo · calcolo senza disegno</div>
+  <div class="toast" id="toast"></div>
+  <div class="ctrl">
+   <button id="play" aria-pressed="false">Pausa</button>
+   <button id="reset">Nuovo Big Bang</button>
+   <button id="turbo" aria-pressed="false">Turbo</button>
+   <div class="seg" role="group" aria-label="Colore delle nubi">
+    <button id="mT" aria-pressed="true">Temperatura</button><button id="mZ" aria-pressed="false">Composizione</button>
+   </div>
+   <button id="spin" aria-pressed="true">Rotazione</button>
+   <label class="speed" for="spd">Velocità <input id="spd" type="range" min="1" max="6" step="1" value="3"><span id="spdv">3×</span></label>
+  </div>
+  <div class="legend" id="legend"></div>
+ </div>
+ <aside>
+  <div>
+   <h1>Universo Genesi II</h1>
+   <p class="sub">Ogni particella è una nube di gas con la sua composizione chimica. Idrodinamica, gravità, combustione nucleare e raffreddamento fanno il resto: stelle, supernove, pianeti e vita emergono da sole.</p>
+  </div>
+  <div class="sec">
+   <p class="lbl">Composizione dell'universo (frazione in massa)</p>
+   <div class="ptable" id="ptable"></div>
+  </div>
+  <div class="sec">
+   <p class="lbl">Stato</p>
+   <dl class="stats" id="stats"></dl>
+  </div>
+  <div class="sec">
+   <p class="lbl">Cronaca</p>
+   <ol class="log" id="log"></ol>
+  </div>
+  <div class="sec">
+   <details>
+    <summary>Le regole del modello</summary>
+    <ul>
+     <li><b>Idrodinamica SPH</b>: ogni nube ha densità, pressione e temperatura. Se viene compressa si scalda, se si espande si raffredda. Le onde d'urto dissipano energia.</li>
+     <li><b>Gravità</b> newtoniana 1/r² tra tutte le nubi.</li>
+     <li><b>Raffreddamento</b>: il gas irradia; i metalli lo raffreddano molto più dell'idrogeno. Il gas molto denso diventa opaco e trattiene il calore: così la nube si accende.</li>
+     <li><b>Combustione nucleare</b> che dipende da densità e temperatura: H → He (∝T⁴), poi He → C → O → metalli → ferro, ognuno con una soglia di temperatura più alta. L'energia liberata usa i valori reali di energia di legame per nucleone (7,07 MeV per H → He, 0,61 per He → C…).</li>
+     <li><b>Supernova</b>: quando il nucleo accumula ferro la stella esplode, riscalda i vicini e li arricchisce di elementi pesanti. Il ciclo ricomincia con gas più ricco.</li>
+     <li><b>Chimica</b>: nelle nubi fredde si formano acqua, molecole organiche e polveri (metalli + ossigeno).</li>
+     <li><b>Pianeti</b>: polveri fredde vicino a una stella accesa.</li>
+     <li><b>Vita</b> (la parte più ipotetica): biomassa che nasce raramente dove ci sono acqua liquida e molecole organiche, cresce, si diffonde con mutazioni e muore se la stella esplode.</li>
+    </ul>
+    <p>Scale e tempi sono compressi enormemente: le leggi sono reali, i numeri no.</p>
+   </details>
+  </div>
+  <p class="perf" id="perf"></p>
+ </aside>
+</div>
+<script>
+/*CORE*/
+</script>
+<script>
+(function(){
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),$=id=>document.getElementById(id);
+let S,run=true,spf=3,spin=true,turbo=false,mode='T',yaw=0.6,pitch=0.35,zoom=1,lastLog=0,toastT=0,msStep=0;
+if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){spin=false;$('spin').setAttribute('aria-pressed','false');}
+// rampa di corpo nero per la temperatura
+const TR=[[40,10,60],[120,20,40],[200,60,30],[255,140,50],[255,210,140],[255,245,230],[200,220,255],[150,180,255]];
+function lerpRamp(R,t){t=Math.max(0,Math.min(.9999,t))*(R.length-1);const i=t|0,f=t-i,a=R[i],b=R[i+1];return[a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,a[2]+(b[2]-a[2])*f];}
+const ZR=[[90,120,200],[140,160,220],[200,180,140],[240,140,70],[230,80,40]];
+const NB=32,spriteT=[],spriteZ=[];
+function mkSprite([r,g,b]){const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d');const gr=x.createRadialGradient(32,32,0,32,32,32);gr.addColorStop(0,`rgba(${r|0},${g|0},${b|0},.55)`);gr.addColorStop(.35,`rgba(${r|0},${g|0},${b|0},.22)`);gr.addColorStop(1,`rgba(${r|0},${g|0},${b|0},0)`);x.fillStyle=gr;x.fillRect(0,0,64,64);return c;}
+for(let i=0;i<NB;i++){spriteT.push(mkSprite(lerpRamp(TR,i/(NB-1))));spriteZ.push(mkSprite(lerpRamp(ZR,i/(NB-1))));}
+const starSp=(()=>{const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d');const g=x.createRadialGradient(32,32,0,32,32,32);g.addColorStop(0,'rgba(255,255,245,1)');g.addColorStop(.12,'rgba(255,235,180,.9)');g.addColorStop(.4,'rgba(255,190,100,.25)');g.addColorStop(1,'rgba(255,160,80,0)');x.fillStyle=g;x.fillRect(0,0,64,64);return c;})();
+function legend(){const css=R=>'linear-gradient(90deg,'+R.map(c=>`rgb(${c})`).join(',')+')';
+ $('legend').innerHTML=(mode==='T'?`<span>Freddo<i class="ramp" style="background:${css(TR)}"></i>Caldissimo</span>`:`<span>H, He puri<i class="ramp" style="background:${css(ZR)}"></i>Ricco di metalli</span>`)+`<span><i class="dot" style="background:#fff3c4;box-shadow:0 0 6px #ffd27a"></i>Stella accesa</span><span><i class="dot" style="border:1.5px solid #c98a4b"></i>Sistema planetario</span><span><i class="dot" style="border:1.5px solid var(--life)"></i>Vita (colore = stirpe)</span>`;}
+const ZN=['1','2','6','7','8','12','26'];
+function init(){S=makeSim2({});lastLog=0;$('log').innerHTML='';
+ $('ptable').innerHTML=S.SP.map((e,i)=>`<div class="el"><div class="z">${ZN[i]}</div><div class="s" style="color:${e.c}">${e.s}</div><div class="c" id="c${i}">0</div><div class="bar" id="b${i}" style="background:${e.c}"></div></div>`).join('')+`<div class="el"><div class="z">Z</div><div class="s">Metalli</div><div class="c" id="cZ">0</div></div>`;}
+function size(){const d=Math.min(2,window.devicePixelRatio||1),w=cv.clientWidth;cv.width=w*d;cv.height=w*d;}
+window.addEventListener('resize',size);
+let drag=null,pinch=0;
+cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);drag={x:e.clientX,y:e.clientY};});
+cv.addEventListener('pointermove',e=>{if(!drag)return;yaw+=(e.clientX-drag.x)*.008;pitch=Math.max(-1.4,Math.min(1.4,pitch+(e.clientY-drag.y)*.008));drag={x:e.clientX,y:e.clientY};});
+cv.addEventListener('pointerup',()=>drag=null);cv.addEventListener('pointercancel',()=>drag=null);
+cv.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(.6,Math.min(3,zoom*(e.deltaY<0?1.1:.9)));},{passive:false});
+cv.addEventListener('touchmove',e=>{if(e.touches.length===2){const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);if(pinch)zoom=Math.max(.6,Math.min(3,zoom*d/pinch));pinch=d;drag=null;}},{passive:true});
+cv.addEventListener('touchend',()=>pinch=0);
+const tog=(id,v)=>$(id).setAttribute('aria-pressed',String(v));
+$('play').onclick=()=>{run=!run;$('play').textContent=run?'Pausa':'Avvia';tog('play',!run);};
+$('reset').onclick=()=>init();
+$('turbo').onclick=()=>{turbo=!turbo;tog('turbo',turbo);$('tb').hidden=!turbo;};
+$('spin').onclick=()=>{spin=!spin;tog('spin',spin);};
+$('mT').onclick=()=>{mode='T';tog('mT',true);tog('mZ',false);legend();};
+$('mZ').onclick=()=>{mode='Z';tog('mZ',true);tog('mT',false);legend();};
+$('spd').oninput=e=>{spf=+e.target.value;$('spdv').textContent=spf+'×';};
+function proj(x,y,z,W,cy,sy,cp,sp){const L=S.L;x-=L/2;y-=L/2;z-=L/2;const x1=x*cy-z*sy,z1=x*sy+z*cy,y1=y*cp-z1*sp,z2=y*sp+z1*cp;const D=L*1.6,f=W*.95*zoom/(D+z2);return[W/2+x1*f,W/2+y1*f,f,z2];}
+function era(){if(S.lifeP>0)return'Era della vita';if(S.seen.life)return'La vita è comparsa';if(S.planets>0)return'Sistemi planetari';if(S.sn>0)return S.stars>0?'Nuove generazioni di stelle':'Dopo le supernove';if(S.stars>0)return'Prime stelle';return'Universo primordiale';}
+const ord=new Int32Array(2000),depth=new Float64Array(2000),PX=new Float64Array(2000),PY=new Float64Array(2000),PF=new Float64Array(2000);
+function draw(){
+ const W=cv.width,N=S.N;ctx.globalCompositeOperation='source-over';ctx.fillStyle='#05060b';ctx.fillRect(0,0,W,W);
+ const cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch),L=S.L;
+ ctx.strokeStyle='rgba(120,130,170,.13)';ctx.lineWidth=1;const V=[];for(let i=0;i<8;i++)V.push(proj(i&1?L:0,i&2?L:0,i&4?L:0,W,cy,sy,cp,sp));
+ [[0,1],[2,3],[4,5],[6,7],[0,2],[1,3],[4,6],[5,7],[0,4],[1,5],[2,6],[3,7]].forEach(([a,b])=>{ctx.beginPath();ctx.moveTo(V[a][0],V[a][1]);ctx.lineTo(V[b][0],V[b][1]);ctx.stroke();});
+ for(let i=0;i<N;i++){const q=proj(S.x[i],S.y[i],S.z[i],W,cy,sy,cp,sp);PX[i]=q[0];PY[i]=q[1];PF[i]=q[2];depth[i]=q[3];ord[i]=i;}
+ const o=Array.from(ord.subarray(0,N)).sort((a,b)=>depth[b]-depth[a]);
+ ctx.globalCompositeOperation='lighter';
+ for(const i of o){const f=PF[i],r=Math.max(2,S.h[i]*f*1.1);let k;
+  if(mode==='T'){k=Math.round((Math.log10(Math.max(S.u[i],0.002))+2.7)/3.2*(NB-1));}else{const b=i*7,Z=1-S.X[b]-S.X[b+1];k=Math.round(Math.min(1,Math.sqrt(Z/.12))*(NB-1));}
+  k=Math.max(0,Math.min(NB-1,k));ctx.drawImage(mode==='T'?spriteT[k]:spriteZ[k],PX[i]-r,PY[i]-r,r*2,r*2);}
+ for(let i=0;i<N;i++){if(S.lum[i]>1e-4){const r=Math.max(4,Math.min(40,(6+Math.sqrt(S.lum[i])*120)*PF[i]));ctx.drawImage(starSp,PX[i]-r,PY[i]-r,r*2,r*2);}}
+ ctx.globalCompositeOperation='source-over';
+ for(let i=0;i<N;i++){const f=PF[i];
+  if(S.planet[i]){ctx.strokeStyle='rgba(201,138,75,.9)';ctx.lineWidth=Math.max(1,W/600);ctx.beginPath();ctx.arc(PX[i],PY[i],Math.max(2.5,3*f),0,6.283);ctx.stroke();}
+  if(S.bio[i]>0){ctx.strokeStyle=`hsla(${S.hue[i]},85%,62%,${.4+.6*Math.min(1,S.bio[i])})`;ctx.lineWidth=Math.max(1.5,W/400);ctx.beginPath();ctx.arc(PX[i],PY[i],Math.max(4,5*f),0,6.283);ctx.stroke();}}
+ for(const fx of S.fx){const q=proj(fx.x,fx.y,fx.z,W,cy,sy,cp,sp),a=1-fx.r/fx.max;ctx.strokeStyle=`rgba(${fx.c},${a*.85})`;ctx.lineWidth=Math.max(1,W/450);ctx.beginPath();ctx.arc(q[0],q[1],fx.r*q[2],0,6.283);ctx.stroke();}
+}
+const pct=v=>v>=.1?(v*100).toFixed(1)+'%':v>=.001?(v*100).toFixed(2)+'%':v>0?(v*100).toFixed(3)+'%':'0%';
+const fmt=n=>n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e4?(n/1e3).toFixed(0)+'k':n>=100?Math.round(n).toLocaleString('it-IT'):n.toFixed(1);
+function hud(){
+ const t=S.totals();for(let i=0;i<7;i++){$('c'+i).textContent=pct(t[i]);$('b'+i).style.width=Math.min(100,Math.sqrt(t[i])*100)+'%';}
+ $('cZ').textContent=pct(1-t[0]-t[1]);
+ $('era').textContent=era();$('clock').textContent='t = '+S.t.toLocaleString('it-IT')+' passi';
+ $('stats').innerHTML=[['Stelle accese',S.stars],['Supernove',S.sn],['Sistemi planetari',S.planets],['Pianeti con vita',S.lifeP],['Stirpi nate',S.lin],['Temperatura media',S.temp().toFixed(3)],['Energia da fusione',fmt(S.E.fus)],['Energia irradiata',fmt(S.E.rad)]].map(([a,b])=>`<div><dt>${a}</dt><dd>${b}</dd></div>`).join('');
+ if(S.log.length>lastLog){const ol=$('log');for(;lastLog<S.log.length;lastLog++){const l=S.log[lastLog];ol.querySelectorAll('.new').forEach(e=>e.classList.remove('new'));const li=document.createElement('li');li.className='new';li.innerHTML=`<time>${l.t.toLocaleString('it-IT')}</time><span></span>`;li.lastChild.textContent=l.msg;ol.appendChild(li);ol.scrollTop=ol.scrollHeight;if(lastLog>0){$('toast').textContent=l.msg;$('toast').style.opacity=1;toastT=performance.now();}}}
+ if(performance.now()-toastT>4500)$('toast').style.opacity=0;
+ $('perf').textContent=`${S.N} nubi · ${msStep.toFixed(1)} ms per passo`;
+}
+let frame=0,lastDraw=0;
+function loop(now){
+ if(run){const t0=performance.now();let n=0;const budget=turbo?45:24;const max=turbo?200:spf;
+  while(n<max){S.step();n++;if(performance.now()-t0>budget)break;}
+  msStep=msStep*.9+((performance.now()-t0)/n)*.1;}
+ if(spin&&!drag)yaw+=.002;
+ if(!turbo||now-lastDraw>500){draw();lastDraw=now;}
+ if(frame++%8===0)hud();requestAnimationFrame(loop);
+}
+init();size();legend();hud();requestAnimationFrame(loop);
+})();
+</script>

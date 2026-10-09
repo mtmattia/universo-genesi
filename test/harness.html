@@ -1,0 +1,19 @@
+<html><body><canvas id="c" width="400" height="400"></canvas><script src="../src/v4/elements.js"></script><script src="../src/v4/engine.js"></script><script>
+window.mkvp=(D)=>{D=D||360;const _=0,f=1/Math.tan(25*Math.PI/180),n=D*0.002,fr=D*400;const P=[f,0,0,0,0,f,0,0,0,0,fr/(n-fr),-1,0,0,n*fr/(n-fr),0];
+const V=[1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,-D,1];const r=new Array(16).fill(0);for(let c=0;c<4;c++)for(let rr=0;rr<4;rr++){let s=0;for(let k=0;k<4;k++)s+=P[k*4+rr]*V[c*4+k];r[c*4+rr]=s;}return r;};</script><script>
+window.run=async(N,steps,every,opts)=>{const RD=(opts&&opts.D)||360;const RC=(opts&&opts.cloud!=null)?opts.cloud:0.55;const out=[];try{
+ const g=await GenesisGPU.create(document.getElementById('c'),{});let ne=0;g.dev.addEventListener('uncapturederror',e=>{if(ne++<3)out.push('ERR '+e.error.message.slice(0,600));});
+ g.reset(N,opts||{});const t0=performance.now();
+ for(let s=0;s<steps;s+=every){g.step(every,0);await g.done();const st=await g.readStats();
+  out.push(`${g.t} Z ${(1-st.tot[0]-st.tot[1]).toFixed(4)} He ${st.tot[1].toFixed(3)} T ${st.temp.toFixed(4)} R ${st.R.toFixed(0)} comp ${st.tot.slice(2).map(v=>v.toExponential(1)).join(',')} Fe/sun ${(st.tot[6]/SOLAR.fePeak).toFixed(3)} a/sun ${(st.tot[5]/SOLAR.alpha).toFixed(2)} O/sun ${(st.tot[4]/SOLAR.x[8]).toFixed(2)} s ${st.trac[0].toExponential(2)} r ${st.trac[1].toExponential(2)} L ${st.trac[2].toExponential(2)} st ${st.stars} sn ${st.sn} pl ${st.planets} hz ${st.habit} life ${st.lifeP} lin ${st.lin} first ${Object.entries(st.first).filter(e=>e[1]).map(e=>e[0]).join(',')}`);}
+ out.push('ms/step '+((performance.now()-t0)/steps).toFixed(1));
+ g.prep(0);g.render(new Float32Array([0.005,0,0,0, 0,0.005,0,0, 0,0,0.001,0.001, 0,0,0.5,1]),{px:1.5,cloudA:0.05,cloudK:1,cloudMax:40,ptA:0.8});await g.done();
+ const tex=g.dev.createTexture({size:[384,384],format:g.fmt,usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.COPY_SRC});
+ const rbuf=g.dev.createBuffer({size:384*384*4,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
+ const vp=window.mkvp(RD);g.prep(0);const dn=Math.sqrt(16384/N);g.render(new Float32Array(vp),{px:1.25,cloudA:RC*0.3*Math.cbrt(16384/N),cloudK:2.4*2.1445,cloudMax:90,ptA:Math.max(0.3,Math.min(0.95,0.95*dn)),view:tex.createView()});
+ const e=g.dev.createCommandEncoder();e.copyTextureToBuffer({texture:tex},{buffer:rbuf,bytesPerRow:1536},[384,384]);g.dev.queue.submit([e.finish()]);
+ await rbuf.mapAsync(GPUMapMode.READ);const d=new Uint8Array(rbuf.getMappedRange());let nz=0,mx=0;for(let k=0;k<d.length;k+=4){const v=d[k]+d[k+1]+d[k+2];if(v>40)nz++;if(v>mx)mx=v;}
+ out.push('render nonblack px '+nz+' max '+mx+' fmt '+g.fmt);window.__img=Array.from(d);
+ const pk=await g.readPick();out.push('rb sample '+Array.from(pk.slice(0,12)).map(v=>v.toFixed(3)).join(','));
+}catch(e){out.push('EXC '+e.message+' '+e.stack);}return out.join('\n');};
+</script></body></html>

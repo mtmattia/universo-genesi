@@ -243,7 +243,7 @@ const NOPT=[8192,16384,32768,65536,131072,262144];
 $('npart').innerHTML=NOPT.map(n=>`<option value="${n}">${n.toLocaleString('it-IT')}</option>`).join('');
 let run=true,spin=true,turbo=false,mode=2,speed=6,cloud=0.55,showDM=true,lamOn=true;
 if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){spin=false;$('spin').setAttribute('aria-pressed','false');}
-const dpr=()=>Math.min(3,window.devicePixelRatio||1);
+const dpr=()=>Math.min(4,window.devicePixelRatio||1);
 // ================= camera orbitale =================
 const cam={t:[0,0,0],yaw:0.6,pitch:0.35,D:360,fov:50*Math.PI/180,follow:-1,ft:null};
 function persp(f,a,n,fr){return[f/a,0,0,0,0,f,0,0,0,0,fr/(n-fr),-1,0,0,n*fr/(n-fr),0];}

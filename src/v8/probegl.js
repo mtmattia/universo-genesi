@@ -130,7 +130,7 @@ function pgInit(){if(PG.gl!==null)return PG.gl;const c=document.createElement('c
  gl.useProgram(pr);gl.bindVertexArray(gl.createVertexArray());
  for(const n of['uT','uExt','uKind','uSeed','uGiant','uAct','uDim','uPulse','uPx','uPT','uWat','uBio','uTeq','uAtm','uAcc','uIce','uCol','uAtmCol','uL','uBN','uCam'])PG.u[n]=gl.getUniformLocation(pr,n);
  PG.c=c;PG.gl=gl;return gl;}
-function pgRender(size,U){const gl=pgInit();if(!gl)return null;size=Math.max(16,Math.min(U&&U.uKind===2?900:1400,Math.round(size)));
+function pgRender(size,U){const gl=pgInit();if(!gl)return null;size=Math.max(16,Math.min(U&&U.uKind===2?1600:2048,Math.round(size)));
  if(PG.c.width!==size){PG.c.width=PG.c.height=size;}gl.viewport(0,0,size,size);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
  const d={uT:0,uExt:1,uKind:0,uSeed:0,uGiant:0,uAct:0.3,uDim:1,uPulse:0,uPx:0.01,uPT:2,uWat:0,uBio:0,uTeq:300,uAtm:0,uAcc:0.5,uIce:0,uL:[-.65,.45,.62],uBN:[0,.98,.2],uCam:[1,0,0,0,1,0,0,0,1],...U};d.uPx=2*d.uExt/size*1.5;
  for(const k in d){const l=PG.u[k];if(!l)continue;const v=d[k];if(Array.isArray(v)){if(v.length===9)gl.uniformMatrix3fv(l,false,v);else gl.uniform3fv(l,v);}else gl.uniform1f(l,v);}

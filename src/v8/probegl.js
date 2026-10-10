@@ -24,6 +24,7 @@ vec3 starIn(vec2 p){float r2=dot(p,p);float z=sqrt(max(0.,1.-r2));vec3 n=vec3(p,
  float fr=mix(60.,3.2,uGiant);
  vec3 qd=q*fr+uSeed*7.+uGiant*1.6*vec3(fbm3(q*2.+1.),fbm3(q*2.+5.),fbm3(q*2.+9.));vec2 w=wor(qd,uT*mix(.5,.12,uGiant));float gran=smoothstep(.0,mix(.38,.6,uGiant),w.y-w.x);
  vec2 w2=wor(q*fr*2.6+3.3,uT*.8);float g2=smoothstep(.0,.3,w2.y-w2.x);
+ float fp=uPx/max(z,.06);float a1=smoothstep(3.,8.,1./(fr*fp));float a2=smoothstep(3.,8.,1./(fr*2.6*fp));gran=mix(.6,gran,a1);g2=mix(.6,g2,a2);
  float I=mix(mix(.86,.72,uGiant),1.,gran)*mix(mix(.95,.85,uGiant),1.,g2);
  I*=.88+.24*fbm3(q*2.5+uT*.01);
  float band=exp(-pow((abs(lat)-.32)/.16,2.))*(1.-uGiant)+uGiant*.8;
@@ -69,7 +70,7 @@ vec4 planet(vec2 p){float r=length(p);vec3 L=normalize(uL);
  vec2 pp=p/max(r,1.);float z=sqrt(max(0.,1.-dot(pp,pp)));vec3 n=vec3(pp,z);vec3 q=rY(uT*.035+uSeed)*(rX(.3)*(uCam*n));
  float spec;vec3 emis;float cloud;vec3 c=surf(q,spec,emis,cloud);
  float nl=dot(n,L);float dif=max(nl,0.);float term=smoothstep(-.08,.2,nl);
- vec3 h=normalize(L+vec3(0,0,1));float sp=pow(max(dot(n,h),0.),60.)*spec*.7*term;
+ vec3 h=normalize(L+vec3(0,0,1));float nh=max(dot(n,h),0.);float sp=(pow(nh,300.)*1.3+pow(nh,30.)*.08)*spec*term;
  vec3 col=c*(dif*1.15+.02)+sp;
  if(cloud>0.){vec3 qc=rY(uT*.012)*q;float sh=smoothstep(.52,.74,fbm(qc*vec3(3.,7.,3.)+vec3(uT*.02,0,0)+9.03));col*=1.-.35*sh*dif;col=mix(col,vec3(1.)*(dif*1.1+.02),cloud*.9*(int(uPT+.5)==1?.85:1.));}
  col+=emis*(.4+.6*(1.-term));

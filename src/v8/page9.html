@@ -401,9 +401,9 @@ async function selectAt(e){const r=cv.getBoundingClientRect(),sx=(e.clientX-r.le
 function selectGalaxy(G){sel={kind:'galaxy',G};setFollow(G.center,'galassia');cam.ft=[...G.c];folSample(G.c);const f=1/Math.tan(cam.fov/2);flyTo(Math.max(6,3*G.R*f));probe.on=false;renderSel();}
 function selectObject(arr,i){const k=i*STRIDE,ty=arr[k+16];let kind=ty===4?'bh':ty===2?'wd':ty===3?'ns':ty===1?'dm':arr[k+7]>0?'star':arr[k+8]>=1||arr[k+10]>0?'planet':'gas';
  const info={teq:arr[k+12],Z:arr[k+13],wat:arr[k+14],org:arr[k+15],bio:arr[k+10],ring:arr[k+8],L:arr[k+7],mass:arr[k+17]};
- let host=-1,pl=0;if(kind==='star'){const I=systemInfo(arr,i);info.sys=I;pl=I.pl;}if(kind==='planet'){host=hostStar(arr,i);}
+ let host=-1,pl=0;if(kind==='star'){const I=systemInfo(arr,i);info.sys=I;pl=I.pl;}if(kind==='planet'){host=hostStar(arr,i);if(host>=0&&host!==i)info.hostSys=systemInfo(arr,host);}
  sel={kind,i,info,host,pl};setFollow(i,{bh:'buco nero',wd:'nana bianca',ns:'stella di neutroni',dm:'materia oscura',star:'stella',planet:'pianeta',gas:'gas'}[kind]);
- cam.ft=[arr[k],arr[k+1],arr[k+2]];folSample(cam.ft);const D=kind==='star'||kind==='planet'?2.2:3;flyTo(D);probe.on=true;probe.D0=D;probe.t0=performance.now();probe.kind=kind;probe.flares=[];renderSel();}
+ cam.ft=[arr[k],arr[k+1],arr[k+2]];folSample(cam.ft);const D=kind==='star'||kind==='planet'?2.2:3;flyTo(D);probe.on=true;probe.D0=D;probe.t0=performance.now();probe.kind=kind;probe.flares=[];probe.real=false;renderSel();}
 function clearSel(){sel=null;probe.on=false;$('selcard').hidden=true;$('selcard').__h='';setFollow(-1);}
 let chipOpen=false;
 function chip(title,meta,btns){return `<div class="chip"><span class="ct">${title}</span>${btns.map(b=>`<button data-a="${b[0]}">${b[1]}</button>`).join('')}${meta?'<button class="ic" data-a="info" aria-label="Dettagli">i</button>':''}<button data-a="x">Esci</button></div><div class="chipmore"${chipOpen&&meta?'':' hidden'}>${meta}</div>`;}
@@ -413,11 +413,11 @@ function renderSel(){const el=$('selcard');
  if(filterZ){el.hidden=false;const e=ELEM[filterZ];setChip(el,chip(`Dove c'è più ${e.n.toLowerCase()} · tocca un punto`,'',[]),a=>{if(a==='x')clearFilter();});return;}
  if(!sel){el.hidden=true;return;}let h='';const st=probe.st;
  if(sel.kind==='galaxy'){const G=sel.G;h=chip(`${G.name} · ${G.stars} stelle`,`diametro ~${Math.round(G.R*2)} unità · ${G.planets} pianeti${G.habit?' ('+G.habit+' abitabili)':''}${G.life?' · vita su '+G.life:''} · ${G.bh} buchi neri · ${G.wd} nane bianche · ${G.ns} stelle di neutroni. Tocca una stella o un pianeta.`,[]);}
- else if(sel.kind==='star'){const I=sel.info.sys||{cls:'?',T:0,L:0,pl:0};h=chip(`Stella ${I.cls} · ${starPhase(st)||'…'}`,`~${I.T.toLocaleString('it-IT')} K in superficie · luminosità ${I.L.toLocaleString('it-IT',{maximumSignificantDigits:2})}× · raggio reale stimato ~${starRadius(I,st).toLocaleString('it-IT',{maximumSignificantDigits:2})} volte il Sole · ${I.pl} ${I.pl===1?'pianeta':'pianeti'}${I.life?' · vita':''}`,I.pl?[['sys','Pianeti']]:[]);}
- else if(sel.kind==='planet'){const t=planetType(sel.info);h=chip(`${PTYPE[t][0]} · ${Math.round(sel.info.teq-273)} °C${sel.info.bio>0?' · vita':''}`,`raggio reale tipico ~${({giant:sel.info.teq<120?4:10,lava:1,hot:1,ocean:1,desert:0.8,cold:0.6,ice:0.5})[t]} volte la Terra (la Terra è 109 volte più piccola del Sole) · metallicità ${(sel.info.Z*100).toFixed(2)}%${sel.info.bio>0?' · biomassa '+(sel.info.bio*100).toFixed(0)+'%':''}`,sel.host>=0?[['sys','Sistema']]:[]);}
- else{const L={bh:'Buco nero',wd:'Nana bianca',ns:'Stella di neutroni',dm:'Materia oscura',gas:'Nube di gas'}[sel.kind];h=chip(L+(sel.kind==='bh'&&st?' · '+(st.mass/(g?g.mGas:1)).toLocaleString('it-IT',{maximumFractionDigits:1})+' nubi':''),{bh:'Inghiotte il gas che gli passa troppo vicino. Il disco luminoso è il gas che sta cadendo.',wd:'Il nucleo spento di una stella come il Sole. Può esplodere come supernova Ia.',ns:'Il nucleo collassato di una supernova: ruota velocissimo ed emette fasci di radiazione.',gas:'Gas interstellare.'}[sel.kind]||'',[]);}
+ else if(sel.kind==='star'){const I=sel.info.sys||{cls:'?',T:0,L:0,pl:0};h=chip(`Stella ${I.cls} · ${starPhase(st)||'…'}`,`~${I.T.toLocaleString('it-IT')} K in superficie · luminosità ${I.L.toLocaleString('it-IT',{maximumSignificantDigits:2})}× · raggio reale stimato ~${starRadius(I,st).toLocaleString('it-IT',{maximumSignificantDigits:2})} volte il Sole · ${I.pl} ${I.pl===1?'pianeta':'pianeti'}${I.life?' · vita':''}`,I.pl?[['sys','Pianeti'],[probe.real?'real':'real',probe.real?'Vista sonda':'Scala reale']]:[[probe.real?'real':'real',probe.real?'Vista sonda':'Scala reale']]);}
+ else if(sel.kind==='planet'){const t=planetType(sel.info);h=chip(`${PTYPE[t][0]} · ${Math.round(sel.info.teq-273)} °C${sel.info.bio>0?' · vita':''}`,`raggio reale tipico ~${({giant:sel.info.teq<120?4:10,lava:1,hot:1,ocean:1,desert:0.8,cold:0.6,ice:0.5})[t]} volte la Terra (la Terra è 109 volte più piccola del Sole) · metallicità ${(sel.info.Z*100).toFixed(2)}%${sel.info.bio>0?' · biomassa '+(sel.info.bio*100).toFixed(0)+'%':''}`,sel.host>=0?[['sys','Sistema'],[probe.real?'real':'real',probe.real?'Vista sonda':'Scala reale']]:[[probe.real?'real':'real',probe.real?'Vista sonda':'Scala reale']]);}
+ else{const L={bh:'Buco nero',wd:'Nana bianca',ns:'Stella di neutroni',dm:'Materia oscura',gas:'Nube di gas'}[sel.kind];h=chip(L+(sel.kind==='bh'&&st?' · '+(st.mass/(g?g.mGas:1)).toLocaleString('it-IT',{maximumFractionDigits:1})+' nubi':''),{bh:'Inghiotte il gas che gli passa troppo vicino. Il disco luminoso è il gas che sta cadendo.',wd:'Il nucleo spento di una stella come il Sole. Può esplodere come supernova Ia.',ns:'Il nucleo collassato di una supernova: ruota velocissimo ed emette fasci di radiazione.',gas:'Gas interstellare.'}[sel.kind]||'',['bh','wd','ns'].includes(sel.kind)?[[probe.real?'real':'real',probe.real?'Vista sonda':'Scala reale']]:[]);}
  el.hidden=sys.active;
- setChip(el,h,a=>{if(a==='x'){clearSel();return;}
+ setChip(el,h,a=>{if(a==='x'){clearSel();return;}if(a==='real'){probe.real=!probe.real;el.__h='';renderSel();return;}
   if(a==='sys'){if(sel.kind==='star'){setFollow(sel.i,'stella');flyTo(ENTER_D*0.6);probe.on=false;}else if(sel.kind==='planet'&&sel.host>=0){pendingPlanet=sel.i;setFollow(sel.host,'stella');flyTo(ENTER_D*0.6);probe.on=false;}}});}
 function starRadius(I,st){const T=st&&st.A0<0.35?3500:Math.max(2500,I.T||5772);return Math.sqrt(Math.max(1e-4,I.L||1))*Math.pow(5772/T,2);}
 function planetType(p){if(p.teq>1000)return'lava';if(p.teq>373)return'hot';if(p.teq>=273)return p.wat>3e-4?'ocean':'desert';if(p.Z>0.02&&p.teq<170)return'giant';if(p.teq<120)return'ice';return'cold';}
@@ -432,11 +432,50 @@ function granTex(){if(probe.gran)return probe.gran;const S=256,c=document.create
  for(let j=0;j<S;j++)for(let i=0;i<S;i++){const u=i/S,v=j/S;const n=vn(u,v,8)*0.5+vn(u,v,16)*0.3+vn(u,v,32)*0.2;const cell=Math.pow(Math.abs(Math.sin(n*14)),0.6);const val=255*(0.35+0.65*cell*n);const o=(j*S+i)*4;im.data[o]=im.data[o+1]=im.data[o+2]=val;im.data[o+3]=255;}
  x.putImageData(im,0,0);return probe.gran=c;}
 function probeLightW(){const a=pickCache||(cpuSnap&&cpuSnap.buf);if(a&&sel&&sel.host>=0){const h=sel.host*STRIDE,p=cam.follow*STRIDE;if(a.length>h+2&&a.length>p+2){const w=[a[h]-a[p],a[h+1]-a[p+1],a[h+2]-a[p+2]];if(Math.hypot(...w)>1e-6)return w;}}return[-0.65,0.45,0.62];}
+const RSUN=696000,REARTH=6371;
+function realBodies(S){const k=probe.kind,B=[];const Lrel=Math.max(0.01,(S.L||0)/LREF);
+ const star=(name,I,giant)=>{const T=giant?3500:Math.max(2500,I.T||5772);return{name,km:starRadius(I,{A0:giant?0.3:1})*RSUN,type:'star',T,giant};};
+ const pR=t=>({giant:S.teq<120?4:10,lava:1,hot:1,ocean:1,desert:0.8,cold:0.6,ice:0.5})[t];
+ if(k==='star'){const I=sel.info.sys||{L:Lrel,T:5772};B.push({...star('Questa stella',I,S.A0<0.35),sel:1});B.push({name:'Sole',km:RSUN,type:'star',T:5772});B.push({name:'Giove',km:69911,type:'planet',pt:6,teq:150,ice:0});B.push({name:'Terra',km:REARTH,type:'planet',pt:2,teq:288,wat:1e-3,bio:1});}
+ else if(k==='planet'){const si=sel.info;S={...S,teq:si.teq,wat:si.wat,Z:si.Z,bio:si.bio};const t=planetType(si);const PT={lava:0,hot:1,ocean:2,desert:3,cold:4,ice:5,giant:6}[t];
+  B.push({name:'Questo pianeta',km:pR(t)*REARTH,type:'planet',pt:PT,teq:S.teq,wat:S.wat,bio:S.bio>0?1:0,ice:S.teq<120?1:0,sel:1});
+  const hs=sel.info.hostSys;if(hs)B.push({...star('La sua stella',hs,false)});B.push({name:'Terra',km:REARTH,type:'planet',pt:2,teq:288,wat:1e-3,bio:1});B.push({name:'Giove',km:69911,type:'planet',pt:6,teq:150,ice:0});}
+ else if(k==='wd'){B.push({name:'Questa nana bianca',km:7000,type:'wd',sel:1});B.push({name:'Terra',km:REARTH,type:'planet',pt:2,teq:288,wat:1e-3,bio:1});B.push({name:'Sole',km:RSUN,type:'star',T:5772});}
+ else if(k==='ns'){B.push({name:'Questa stella di neutroni',km:12,type:'ns',sel:1});B.push({name:'Terra',km:REARTH,type:'planet',pt:2,teq:288,wat:1e-3,bio:1});B.push({name:'Nana bianca',km:7000,type:'wd'});}
+ else if(k==='bh'){const m=Math.max(5,10*(S.mass||0)/(g?g.mGas:1)/2);B.push({name:`Questo buco nero (~${m.toLocaleString('it-IT',{maximumSignificantDigits:2})} masse solari, stima)`,km:2.95*m,type:'bh',sel:1});B.push({name:'Terra',km:REARTH,type:'planet',pt:2,teq:288,wat:1e-3,bio:1});B.push({name:'Sole',km:RSUN,type:'star',T:5772});}
+ return B.sort((a,b)=>b.km-a.km);}
+function fmtKm(km){return km>=1e6?(km/1e6).toLocaleString('it-IT',{maximumSignificantDigits:3})+' milioni di km':km>=1000?Math.round(km).toLocaleString('it-IT')+' km':km.toLocaleString('it-IT',{maximumSignificantDigits:2})+' km';}
+function drawRealScale(x,W,H,t,S,d){const B=realBodies(S);if(!B.length)return;const big=B[0].km;const Dmax=Math.min(W*0.5,H*0.42);const pxPerKm=Dmax/(2*big);
+ x.fillStyle='rgba(4,5,10,0.94)';x.fillRect(0,0,W,H);
+ x.font=`${12*d}px system-ui,sans-serif`;x.textAlign='center';x.textBaseline='top';
+ const CB=camBasis(),camM=[...CB.x,...CB.y,...CB.z];
+ let items=B.map(b=>({b,R:b.km*pxPerKm}));
+ // riga 1: oggetti grandi; se non entrano in larghezza riduco tutto in modo uniforme (le proporzioni restano)
+ const gap=18*d;let bigs=items.filter(i=>i.R>=14*d),smalls=items.filter(i=>i.R<14*d);
+ const w1=bigs.reduce((s,i)=>s+2.3*i.R+gap,0);const sc=w1>W*0.94?W*0.94/w1:1;items.forEach(i=>i.R*=sc);
+ bigs=items.filter(i=>i.R>=14*d);smalls=items.filter(i=>i.R<14*d);
+ const Rmax=bigs.length?bigs[0].R:20*d;const y1=H*0.4;
+ const drawBody=(b,R,cxp,cyp)=>{const seed=pgHash(b.name.length*31+(b.sel?cam.follow:7))*100;let img=null,ext=1.6,s2=0;
+  if(R>=2.5){if(b.type==='star'||b.type==='wd'||b.type==='ns'){const T=b.type==='wd'?25000:b.type==='ns'?40000:b.T;img=pgRender(2*R*ext,{uKind:0,uT:t,uExt:ext,uSeed:seed,uGiant:b.giant?1:0,uAct:b.type==='star'?0.4:0,uCol:bbRGB(T),uCam:camM});s2=2*R*ext;}
+   else if(b.type==='planet'){ext=1.15;img=pgRender(2*R*ext,{uKind:1,uT:t,uExt:ext,uSeed:seed,uPT:b.pt,uWat:b.wat||0,uBio:b.bio||0,uTeq:b.teq||200,uAtm:b.pt===2?1:b.pt===6?0.8:0.3,uAtmCol:b.pt===2?[.35,.6,1]:[1,.9,.75],uIce:b.ice||0,uCam:camM,uL:[-0.65,0.45,0.62]});s2=2*R*ext;}
+   else if(b.type==='bh'){ext=5.5;s2=2*R/2.6*ext;img=pgRender(s2,{uKind:2,uT:t,uExt:ext,uAcc:0.6,uBN:[0,.95,.3]});}
+   if(img)x.drawImage(img,cxp-s2/2,cyp-s2/2,s2,s2);}
+  else{x.fillStyle=b.type==='planet'?'#8fb4ff':b.type==='bh'?'#ffb070':'#fff2d6';x.beginPath();x.arc(cxp,cyp,Math.max(0.8*d,R),0,6.283);x.fill();x.strokeStyle='rgba(255,210,122,.75)';x.lineWidth=1*d;x.beginPath();x.arc(cxp,cyp,8*d,0,6.283);x.stroke();}};
+ const label=(b,R,cxp,ty,maxw)=>{x.fillStyle=b.sel?'#ffd27a':'#cfd6e6';const words=b.name.split(' ');let line='',ly=ty;for(const w of words){const tl=line?line+' '+w:w;if(x.measureText(tl).width>maxw&&line){x.fillText(line,cxp,ly);ly+=14*d;line=w;}else line=tl;}x.fillText(line,cxp,ly);ly+=14*d;
+  x.fillStyle='#8a93a8';x.fillText('raggio '+fmtKm(b.km),cxp,ly);ly+=14*d;if(R<2.5)x.fillText(R<0.5?'(meno di un pixel)':'('+(2*R/d).toFixed(1)+' pixel)',cxp,ly);};
+ let tot=bigs.reduce((s,i)=>s+2.3*i.R+gap,-gap),xs=(W-tot)/2;
+ for(const it of bigs){const cxp=xs+1.15*it.R;drawBody(it.b,it.R,cxp,y1);label(it.b,it.R,cxp,y1+it.R*1.05+8*d,Math.max(2.2*it.R,100*d));xs+=2.3*it.R+gap;}
+ if(smalls.length){const y2=Math.min(H-110*d,y1+Rmax*1.05+70*d);const slot=Math.min(W*0.9/smalls.length,150*d);let x2=(W-slot*smalls.length)/2+slot/2;
+  x.fillStyle='#8a93a8';x.font=`${11*d}px system-ui,sans-serif`;x.fillText('stessa scala:',W/2,y2-34*d);x.font=`${12*d}px system-ui,sans-serif`;
+  for(const it of smalls){drawBody(it.b,it.R,x2,y2);label(it.b,it.R,x2,y2+Math.max(it.R,9*d)+8*d,slot-8*d);x2+=slot;}}
+ x.textAlign='center';x.fillStyle='#8a93a8';x.font=`${11*d}px system-ui,sans-serif`;
+ x.fillText('Diametri in scala reale. Le distanze no: la Terra sta a 215 raggi solari dal Sole.',W/2,H-34*d);}
 function hexRgb(h){const n=parseInt(h.slice(1),16);return[(n>>16)&255,(n>>8)&255,n&255];}
 function drawProbe(now){const c=$('probec'),x=c.getContext('2d'),W=c.width,H=c.height;x.clearRect(0,0,W,H);
  if(!probe.on||!sel||sys.active||filterZ||cam.follow<0)return;const st=probeState();if(st)probe.st=st;if(!probe.st)return;const S=probe.st,d=dpr(),t=(now-probe.t0)/1000;
  const scale=Math.max(0.12,Math.min(3,probe.D0/cam.D));const R0=Math.min(W,H)/6*scale;const fade=Math.min(1,t/0.6)*Math.min(1,(scale-0.12)/0.25);if(fade<=0.01)return;x.globalAlpha=fade;
  const cx=W/2,cy=H/2,k=probe.kind;
+ if(probe.real){drawRealScale(x,W,H,t,S,d);x.globalAlpha=1;return;}
  const CB=camBasis(),camM=[...CB.x,...CB.y,...CB.z],dt3=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],toV=w=>{const l=Math.hypot(...w)||1;return[dt3(CB.x,w)/l,dt3(CB.y,w)/l,dt3(CB.z,w)/l];};
  if(k==='star'){const Lrel=Math.max(0.05,(S.L||0)/LREF);const sp=SPEC.find(q=>Lrel>=q[1]);let col=hexRgb(sp[2]);let R=R0*(1.0+0.1*Math.log10(1+Lrel));
   const giant=S.A0<0.35;if(giant){R*=1.6;col=[255,150,90];}if(S.L<=0){col=[200,90,60];}

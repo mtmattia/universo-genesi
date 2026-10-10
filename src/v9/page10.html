@@ -20,6 +20,7 @@ body{background:var(--void);color:var(--ink);font-family:var(--f-body);font-size
 #cv{touch-action:none;cursor:grab}
 #cv:active{cursor:grabbing}
 .over{pointer-events:none}
+.fltx{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:6;background:#1a1408;color:#ffd27a;border:1px solid #ffd27a;border-radius:20px;padding:8px 16px;font-size:14px}
 .hud-tl{position:absolute;left:14px;top:12px;pointer-events:none}
 .hud-tl b{display:block;font-family:var(--f-disp);font-weight:500;font-size:15px;letter-spacing:.02em}
 .hud-tl span{display:block;font-family:var(--f-mono);font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
@@ -140,6 +141,7 @@ details ul{padding-left:18px;margin:8px 0 0}details li{margin-bottom:4px}
    <div class="zoom"><button id="zin" aria-label="Avvicina">+</button><button id="zout" aria-label="Allontana">−</button></div>
    <button class="enter" id="enter" hidden>Entra nel sistema</button>
    <canvas id="probec" class="over"></canvas>
+   <button id="fltx" class="fltx" hidden>✕ Togli filtro</button>
    <canvas id="microc" class="over" hidden></canvas>
    <div class="mlog" id="mlog" hidden></div><div class="mleg" id="mleg" hidden></div>
    <div class="chipwrap" id="selcard" hidden></div>
@@ -281,7 +283,7 @@ $('turbo').onclick=()=>{turbo=!turbo;tog('turbo',turbo);$('tb').hidden=!turbo;};
 $('spin').onclick=()=>{spin=!spin;tog('spin',spin);};
 let photo=true;
 function setExpo(p){photo=p;tog('eF',p);tog('eO',!p);expoT=0;toast(p?'Fotografia: esposizione lunga, gli oggetti deboli diventano visibili':'Occhio: come apparirebbe a occhio nudo, solo le cose più luminose');}
-$('eF').onclick=()=>setExpo(true);$('eO').onclick=()=>setExpo(false);
+$('fltx').onclick=()=>clearFilter();$('eF').onclick=()=>setExpo(true);$('eO').onclick=()=>setExpo(false);
 function setMode(m){mode=m;tog('mR',m===2);tog('mI',m===3);tog('mX',m===4);tog('mG',m===5);tog('mD',m===6);tog('mT',m===0);tog('mZ',m===1);$('cloudlab').hidden=m>=2;legend();}
 $('mI').onclick=()=>setMode(3);$('mX').onclick=()=>setMode(4);$('mG').onclick=()=>setMode(5);$('mD').onclick=()=>setMode(6);
 $('mR').onclick=()=>setMode(2);$('mT').onclick=()=>setMode(0);$('mZ').onclick=()=>setMode(1);
@@ -341,7 +343,8 @@ const CHD={bb:'Nato nei primi minuti dopo il Big Bang (nucleosintesi primordiale
 const ptg=$('ptgrid');
 ptg.innerHTML=ELEM.slice(1).map(e=>`<button class="cell ${e.kind!=='nat'?e.kind:''}" id="el${e.Z}" style="grid-row:${e.r};grid-column:${e.c}" aria-pressed="false" title="${e.n}"><span class="tint" style="background:var(--ch-${e.ch})"></span><span class="z">${e.Z}</span><span class="sy">${e.s}</span><span class="lv" style="background:var(--ch-${e.ch})"></span></button>`).join('')+
  `<div style="grid-row:6;grid-column:3;font:10px var(--f-mono);color:var(--dim);display:flex;align-items:center;justify-content:center">57–71</div><div style="grid-row:7;grid-column:3;font:10px var(--f-mono);color:var(--dim);display:flex;align-items:center;justify-content:center">89–103</div>`;
-ptg.addEventListener('click',e=>{const b=e.target.closest('.cell');if(!b)return;selZ=+b.id.slice(2);renderPT(true);applyFilter(selZ);});
+let ptPick=false;
+ptg.addEventListener('click',e=>{const b=e.target.closest('.cell');if(!b)return;const Z=+b.id.slice(2);if(ptPick&&Z===selZ){ptPick=false;clearFilter();renderPT(true);return;}selZ=Z;ptPick=true;renderPT(true);applyFilter(selZ);});
 $('srcU').onclick=()=>{ptSrc='U';tog('srcU',1);tog('srcO',0);tog('srcS',0);renderPT(true);};
 $('srcO').onclick=()=>{if(!objBins)return;ptSrc='O';tog('srcU',0);tog('srcO',1);tog('srcS',0);renderPT(true);};
 $('srcS').onclick=()=>{ptSrc='S';tog('srcU',0);tog('srcO',0);tog('srcS',1);renderPT(true);};
@@ -350,7 +353,7 @@ function curBins(){if(ptSrc==='S')return{H:SOLAR.x[1],He:SOLAR.x[2],C:SOLAR.x[6]
 let ptLast=0;
 function renderPT(force){const now=performance.now();if(!force&&now-ptLast<400)return;ptLast=now;const b=curBins();if(!b)return;const m=elementMasses(b);
  for(let Z=1;Z<=118;Z++){const e=ELEM[Z],el=$('el'+Z);const v=m[Z];let lv=0;if(!isNaN(v)&&v>0)lv=Math.max(0,Math.min(1,(Math.log10(v)+13)/13));
-  el.querySelector('.tint').style.opacity=e.kind==='nat'?(0.06+lv*0.5).toFixed(3):(e.kind==='trace'?'0.08':'0.04');el.querySelector('.lv').style.width=(lv*100).toFixed(1)+'%';el.setAttribute('aria-pressed',String(Z===selZ));}
+  el.querySelector('.tint').style.opacity=e.kind==='nat'?(0.06+lv*0.5).toFixed(3):(e.kind==='trace'?'0.08':'0.04');el.querySelector('.lv').style.width=(lv*100).toFixed(1)+'%';el.setAttribute('aria-pressed',String(ptPick&&Z===selZ));}
  $('ptsub').textContent=ptSrc==='U'?'Abbondanza in massa di tutti i 118 elementi nell\'universo simulato. Colore = origine, intensità = quantità.'+(b.est?' Elementi pesanti stimati dal ferro (versione su processore).':''):ptSrc==='O'?'Composizione di '+objLabel+'.':'Composizione del Sistema Solare, il riferimento misurato su cui sono ripartiti i canali.';
  const e=ELEM[selZ],v=m[selZ],sun=SOLAR.x[selZ];
  let origin=CHD[e.ch];if(e.kind==='nat'&&e.Z>30){const sp=Math.round(e.sf*100);origin=`Catture di neutroni: ${sp}% processo s (giganti rosse), ${100-sp}% processo r (supernove e fusioni di stelle di neutroni).`;}
@@ -581,14 +584,14 @@ function elemWeights(Z){const e=ELEM[Z],x=SOLAR.x,w=new Array(10).fill(0);if(Z==
 let filterTh=0;
 async function applyFilter(Z){const e=ELEM[Z];if(!g){toast('Questa funzione richiede la versione GPU');return;}if(e.kind!=='nat'){toast(`${e.n}: non presente in natura nella simulazione`);return;}
  if(sys.active)exitSystem();const w=elemWeights(Z);w.forEach((v,k)=>g.setU('fw'+k,v));const avg=Math.max(1e-30,elementMasses(universeBins)[Z]);
- filterZ=Z;run=false;$('play').textContent='Avvia';tog('play',true);$('stage').scrollIntoView({behavior:'smooth',block:'center'});
+ filterZ=Z;$('fltx').hidden=false;$('fltx').textContent='✕ Togli filtro '+e.s;run=false;$('play').textContent='Avvia';tog('play',true);$('stage').scrollIntoView({behavior:'smooth',block:'center'});
  g.setU('fon',1);g.prep(mode);await g.done();pickCache=null;let a=null;for(let t=0;t<20&&!a;t++){a=await pickData();if(!a)await new Promise(r=>setTimeout(r,50));}
  const v=[];if(a)for(let i=0;i<a.length/STRIDE;i++){const x=a[i*STRIDE+19];if(x>0)v.push(x);}
  if(!v.length){toast(`${e.n} non si è ancora formato: lascia evolvere l'universo`);clearFilter();return;}
  v.sort((p,q)=>p-q);const hi=v[v.length-1],lo=v[0];filterTh=hi>lo*1.02?v[Math.floor(v.length*0.9)]*0.999:lo*0.999;const n=v.filter(x=>x>filterTh).length;
  toast(`${n.toLocaleString('it-IT')} punti con più ${e.n.toLowerCase()}: toccane uno`);
  renderSel();}
-function clearFilter(){filterZ=0;filterTh=0;if(g){g.setU('fon',0);g.prep(mode);}pickCache=null;run=true;$('play').textContent='Pausa';tog('play',false);renderSel();}
+function clearFilter(){filterZ=0;ptPick=false;$('fltx').hidden=true;try{renderPT(true);}catch(e){}filterTh=0;if(g){g.setU('fon',0);g.prep(mode);}pickCache=null;run=true;$('play').textContent='Pausa';tog('play',false);renderSel();}
 const fol={p:null,t:0,v:[0,0,0],last:0};
 function folSample(p){const now=performance.now();if(fol.p&&now>fol.t){const dt=(now-fol.t)/1000;for(let k=0;k<3;k++){const vm=(p[k]-fol.p[k])/dt;fol.v[k]+=(vm-fol.v[k])*0.25;}}else fol.v=[0,0,0];fol.p=[...p];fol.t=now;}
 function folApply(now){if(cam.follow<0||!fol.p)return;const dt=Math.min(0.05,(now-(fol.last||now))/1000);fol.last=now;const ahead=Math.min(0.3,(now-fol.t)/1000);const tau=sel&&sel.kind==='galaxy'?0.8:0.3;const a=1-Math.exp(-dt/tau);for(let k=0;k<3;k++){const tgt=fol.p[k]+fol.v[k]*ahead;cam.t[k]+=(tgt-cam.t[k])*a;}}

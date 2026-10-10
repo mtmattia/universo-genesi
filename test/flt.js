@@ -1,0 +1,12 @@
+const { chromium,devices } = require('/opt/npm-tools/node_modules/playwright');
+(async()=>{const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',headless:true,args:['--headless=new','--enable-unsafe-webgpu','--enable-unsafe-swiftshader','--use-angle=swiftshader','--enable-features=Vulkan','--use-vulkan=swiftshader','--disable-vulkan-surface','--ignore-gpu-blocklist']});
+ const ctx=await b.newContext({...devices['Pixel 7']});const p=await ctx.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));
+ await p.addInitScript(()=>{document.addEventListener('DOMContentLoaded',()=>{const m=document.createElement('meta');m.name='viewport';m.content='width=device-width,initial-scale=1';document.head.appendChild(m);});});
+ await p.goto('file:///home/claude/v5/universo5.html');await p.waitForTimeout(40000);
+ await p.tap('#el2');await p.waitForTimeout(3000);
+ const st=()=>p.evaluate(()=>'filterZ '+window.__genesi.filterZ+' btn '+(!document.getElementById('fltx').hidden)+' pressed '+document.getElementById('el2').getAttribute('aria-pressed')+' run '+window.__genesi.run);
+ console.log('after select',await st());await p.screenshot({path:'/home/claude/v5/flt1.png'});
+ await p.tap('#fltx');await p.waitForTimeout(800);console.log('after button',await st());
+ await p.tap('#el2');await p.waitForTimeout(3000);console.log('reselect',await st());
+ await p.tap('#el2');await p.waitForTimeout(800);console.log('tap again',await st());
+ console.log(errs.join('\n'));await b.close();})();

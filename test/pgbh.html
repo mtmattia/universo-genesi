@@ -1,0 +1,5 @@
+<html><body style="margin:0;background:#000"><canvas id="o" width="1200" height="400"></canvas><script src="probegl.js"></script><script>
+function cb(yaw,pitch){const cp=Math.cos(pitch),sp=Math.sin(pitch),cy=Math.cos(yaw),sy=Math.sin(yaw);const z=[cp*sy,sp,cp*cy];const x=[cy,0,-sy];const y=[z[1]*x[2]-z[2]*x[1],z[2]*x[0]-z[0]*x[2],z[0]*x[1]-z[1]*x[0]];return{x,y,z};}
+window.go=()=>{const o=document.getElementById('o').getContext('2d');o.fillStyle='#000';o.fillRect(0,0,1200,400);
+ [[0.17,0.9],[0.1,0.6],[0.4,0.95]].forEach(([inc,acc],i)=>{const c=pgRender(400,{uKind:2,uT:3,uExt:5.5,uAcc:acc,uBN:[0,Math.cos(inc),Math.sin(inc)]});o.drawImage(c,i*400,0);});
+ return [0,'',document.getElementById('o').toDataURL()];};</script></body></html>

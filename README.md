@@ -27,6 +27,8 @@ Apri `index.html` in un browser (nessuna installazione, nessun server). La versi
 - **Tocca una galassia** per selezionarla: la camera la centra e la inquadra in circa un terzo della vista. *Prossima galassia ›* passa alla successiva.
 - **Tocca una stella, un pianeta o un buco nero**: il tocco preferisce sempre gli oggetti alle nubi di gas. La camera si aggancia e una **vista da sonda** mostra l'oggetto intero da vicino, renderizzato in 3D pixel per pixel su WebGL2: le stelle hanno granulazione convettiva (celle giganti nelle giganti rosse), oscuramento al bordo, macchie, facole, corona e protuberanze, con il colore di corpo nero della loro temperatura; i pianeti sono illuminati dalla stella, con rilievi, oceani, nuvole, calotte polari, atmosfera, bande e tempeste nei giganti gassosi, crepe di lava incandescente; il buco nero è calcolato con **ray tracing nella metrica di Schwarzschild**: ogni raggio di luce viene integrato lungo la sua geodetica, quindi la curvatura del disco sopra e sotto l'ombra, l'anello di fotoni e la distorsione delle stelle di sfondo nascono dalla fisica e non sono disegnati. Il disco ha il profilo di temperatura di Shakura-Sunyaev dal raggio dell'orbita stabile più interna (3 Rs), con Doppler relativistico e redshift gravitazionale. La vista ruota con la camera.
 - **Scala reale**: nella scheda di una stella, un pianeta, una nana bianca, una stella di neutroni o un buco nero, il pulsante *Scala reale* mette l'oggetto accanto a Sole, Terra e Giove (o alla sua stella) con i diametri nelle proporzioni vere e il raggio in km. Gli oggetti troppo piccoli per essere visti sono segnati con un cerchietto e la loro dimensione in pixel. Le distanze non sono in scala.
+- **Tempo umano** (Universo V): quando selezioni una stella, un pianeta o un sistema la simulazione cosmica si ferma e parte un orologio locale in tempo umano (1 s = 1 ora per stelle e pianeti, 1 s = 1 giorno nella vista del sistema, 1 s = 1 s per pulsar e buchi neri). Il pulsante ⏱ cambia scala: 1 s, 1 minuto, 1 ora, 1 giorno, 1 mese, 1 anno, oppure tempo cosmico.
+- **Rotazione e rivoluzione**: l'asse di rotazione di ogni oggetto viene dal momento angolare del gas che lo circonda (L = Σ r × v, calcolato dalle velocità della simulazione). Le stelle ruotano con periodi che dipendono da temperatura e fase (stelle calde in 1-2 giorni, come il Sole in ~25 giorni, giganti in centinaia di giorni). I pianeti orbitano con la terza legge di Keplero, hanno l'asse inclinato e, se sono molto vicini alla stella, rotazione sincrona per effetto delle maree. Le pulsar ruotano da decine di volte al secondo a una volta ogni secondo e mezzo. Le galassie ruotano nella simulazione stessa, in tempo cosmico.
 - **Lock**: la selezione resta agganciata anche ruotando e zoomando, finché non premi *Esci*.
 - **Filtro per elemento** (versione GPU): tocca un elemento nella tavola periodica. La simulazione si ferma e restano visibili solo i punti più ricchi di quell'elemento (il 10% più ricco). Tocca uno di questi punti per centrarlo: la simulazione riparte su quell'oggetto.
 - **Bande di luce** (versione GPU): *Visibile* (predefinita), *Infrarosso*, *Raggi X*, *Gamma*, *Radio*. La luminosità è fisica, non regolabile:
@@ -49,8 +51,9 @@ La relatività generale non è simulata: la gravità dei buchi neri è newtonian
 
 | Percorso | Contenuto |
 |---|---|
-| `index.html` | Versione 8 (vista da sonda, lock, filtro per elemento, colori realistici), file unico pronto all'uso |
-| `versioni/` | Tutte le versioni come file unici: v1 atomi, v2 nubi di gas, v3 universo sferico, v4 GPU, v5 materia oscura e buchi neri, v6 esplorabile con seme, v7 vista interna, v8 vista da sonda |
+| `index.html` | Universo Genesi V (versione 9: tempo umano, rotazione e rivoluzione fisiche), file unico pronto all'uso |
+| `versioni/` | Tutte le versioni come file unici: v1 atomi, v2 nubi di gas, v3 universo sferico, v4 GPU, v5 materia oscura e buchi neri, v6 esplorabile con seme, v7 vista interna, v8 vista da sonda, v9 Universo V |
+| `src/v9/` | Sorgenti di Universo V: `engine4.js`, `page10.html`, `probegl.js`, `build10.py`, `elements.js`, `core4.js` |
 | `src/v8/` | Sorgenti della v8: `engine4.js`, `page9.html`, `probegl.js` (vista da sonda), `build9.py`, `elements.js`, `core4.js` |
 | `src/v7/` | Sorgenti della v7 (vista interna, camera fluida, buchi neri con profondità): `engine3.js`, `page8.html`, `build8.py` |
 | `src/v6/` | Sorgenti della v6: `engine3.js`, `page7.html`, `build7.py` |
@@ -59,6 +62,6 @@ La relatività generale non è simulata: la gravità dei buchi neri è newtonian
 | `src/v1`–`src/v3` | Sorgenti delle versioni precedenti |
 | `test/` | Prove automatiche con Playwright e Chromium (GPU software SwiftShader) |
 
-Per rigenerare `index.html` dopo una modifica: `cd src/v8 && python3 build9.py`.
+Per rigenerare `index.html` dopo una modifica: `cd src/v9 && python3 build10.py`.
 
 Per le prove: `npm i playwright`, poi `node test/runh.js 2000 2000 400` (fisica su GPU) oppure `node test/systest.js cpu 30000` (interfaccia e vista del sistema).

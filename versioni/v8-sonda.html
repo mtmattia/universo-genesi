@@ -826,23 +826,36 @@ vec4 planet(vec2 p){float r=length(p);vec3 L=normalize(uL);
  col+=emis*(.4+.6*(1.-term));
  float fr=pow(1.-z,2.5);col+=uAtmCol*fr*uAtm*term*.9;
  col=tm(col*1.25);return vec4(mix(outc,col,cov),mix(oa,1.,cov));}
-// ---------------- buco nero ----------------
-vec4 hole(vec2 p0){float r=length(p0);vec2 pn2=uBN.xy;float pl=length(pn2);pn2=pl>1e-3?pn2/pl:vec2(0.,1.);vec2 p=vec2(pn2.y*p0.x-pn2.x*p0.y,pn2.x*p0.x+pn2.y*p0.y);if(uBN.z<0.)p.y=-p.y;float t=max(abs(uBN.z),.04);vec2 d=vec2(p.x,p.y/t);float dr=length(d);float ang=atan(d.y,d.x);
- float om=uT*1.6/pow(max(dr,1.),1.5);float tb=fbm(vec3(cos(ang+om)*dr*1.6,sin(ang+om)*dr*1.6,dr*2.5));
- float band=smoothstep(1.45,1.7,dr)*smoothstep(4.8,3.,dr);float I=band*pow(1.6/max(dr,1.6),1.8)*(.35+1.3*tb*tb);
- float bo=pow(clamp(1.+.55*(-d.x/max(dr,1e-3)),.2,2.),3.);
- vec3 dcol=mix(vec3(1.,.96,.9),vec3(1.,.42,.1),smoothstep(1.6,4.,dr))*I*bo*uAcc*1.6;
- float rl=length(vec2(p.x*.96,p.y*1.08));float upper=smoothstep(-.1,.5,p.y);float al=atan(p.y,p.x);
- float Il=smoothstep(1.12,1.28,rl)*smoothstep(2.1,1.5,rl)*(.35+fbm(vec3(cos(al-uT*.4)*3.,sin(al-uT*.4)*3.,rl*5.)));
- float bl=pow(clamp(1.+.45*(-p.x/max(rl,1e-3)),.2,2.),2.);
- vec3 lens=vec3(1.,.7,.4)*Il*bl*uAcc*mix(upper*1.1+(1.-upper)*.35,.75,t*t);
- vec3 ring=vec3(1.,.85,.65)*exp(-pow((r-1.04)/.022,2.))*(.4+uAcc);
- vec3 c=vec3(0.);float a=0.;
- if(r<1.){a=1.;}else{c+=lens+ring;if(p.y>0.)c+=dcol;}
- if(p.y<=0.)c+=dcol;
- if(uAcc>.7){float jy=p.y/max(pl,.08);float jx=abs(p.x)/(.06+abs(jy)*.06);float jet=exp(-jx*jx)*smoothstep(1.,1.6,abs(p.y))*exp(-abs(jy)*.25)*pl*(.6+.6*fbm(vec3(p.x*4.,jy*1.5-sign(p.y)*uT*2.,1.)));c+=vec3(.55,.7,1.)*jet*(uAcc-.7)*3.;}
- c+=vec3(1.,.6,.3)*exp(-max(r-1.,0.)*1.2)*.05*uAcc;
- c=tm(c*1.3);a=max(a,clamp(max(c.r,max(c.g,c.b)),0.,1.));return vec4(c,a);}
+// ---------------- buco nero: ray tracing nella metrica di Schwarzschild (Rs=1) ----------------
+vec3 bbc(float T){T=clamp(T,1000.,40000.)/100.;vec3 c;
+ c.r=T<=66.?1.:clamp(1.292936*pow(T-60.,-.1332047),0.,1.);
+ c.g=T<=66.?clamp(.3900816*log(T)-.6318414,0.,1.):clamp(1.129891*pow(T-60.,-.0755148),0.,1.);
+ c.b=T>=66.?1.:(T<=19.?0.:clamp(.5432068*log(T-10.)-1.1962541,0.,1.));return c;}
+vec3 sky(vec3 d){vec3 q=d*90.;vec3 ce=floor(q);vec3 h=h3(ce);vec3 c=vec3(0.);
+ if(h.x>.97){vec3 o=fract(q)-.5-(h.yzx-.5)*.6;float dd=length(o);c+=bbc(3000.+h.z*9000.)*smoothstep(.16,.0,dd)*(.4+1.6*h.y*h.y);}
+ vec3 q2=d*260.;vec3 h2=h3(floor(q2));if(h2.x>.985){float dd=length(fract(q2)-.5);c+=vec3(.8,.85,1.)*smoothstep(.2,.0,dd)*.5;}
+ float band=exp(-pow(dot(d,normalize(vec3(.3,1.,.2)))*3.5,2.));c+=vec3(.55,.5,.6)*band*fbm(d*4.)*.12;return c;}
+vec4 hole(vec2 p){vec3 N=normalize(uBN);vec3 e1=normalize(abs(N.y)<.9?cross(N,vec3(0,1,0)):cross(N,vec3(1,0,0)));vec3 e2=cross(N,e1);
+ float Do=40.;vec3 pos=vec3(0.,0.,Do);vec3 v=normalize(vec3(p*2.6/sqrt(1.-1./Do),-Do));vec3 L=cross(pos,v);float h2=dot(L,L);
+ vec3 col=vec3(0.);float tr=1.;bool cap=false;float sp=dot(pos,N);float T0=mix(2600.,5200.,uAcc);float Rin=3.,Rout=13.;
+ for(int i=0;i<320;i++){float r=length(pos);float dt=clamp(.06*r*r/(r+2.),.015,2.);
+  vec3 a1=-1.5*h2*pos/pow(r,5.);vec3 vh=v+a1*dt*.5;vec3 np=pos+vh*dt;float nr=length(np);vec3 a2=-1.5*h2*np/pow(nr,5.);v=vh+a2*dt*.5;
+  float s=dot(np,N);
+  if(s*sp<0.){float f=sp/(sp-s);vec3 hp=mix(pos,np,f);float rr=length(hp);
+   if(rr>Rin&&rr<Rout){float x=sqrt(Rin/rr);float Tr=pow(rr/Rin,-.75)*pow(max(1.-x,0.),.25)*2.2;
+    vec3 tg=normalize(cross(N,hp));float be=min(sqrt(.5/(rr-1.)),.75);float ga=1./sqrt(1.-be*be);vec3 no=-normalize(v);
+    float g=sqrt(max(1.-1./rr,0.))/(ga*(1.-be*dot(tg,no)));
+    float ph=atan(dot(hp,e2),dot(hp,e1));float om=uT*3./pow(rr,1.5);
+    float tb=fbm(vec3(cos(ph-om)*rr*.9,sin(ph-om)*rr*.9,rr*.7));float st=.6+.8*tb*tb;
+    float T=T0*Tr*g;vec3 e=bbc(T)*pow(Tr,4.)*pow(g,4.)*st*2.2*(.35+uAcc);
+    float al=clamp(.92*smoothstep(Rin,Rin+.4,rr)*smoothstep(Rout,Rout-6.,rr)*(.5+.5*tb),0.,1.);
+    col+=tr*e*al;tr*=1.-al;if(tr<.02)break;}}
+  pos=np;sp=s;if(nr<1.01){cap=true;break;}if(nr>Do*1.2&&dot(pos,v)>0.)break;}
+ float pr=length(p);float skyA=cap?1.:1.-smoothstep(3.2,uExt*.98,pr);vec3 sk=cap?vec3(0.):sky(normalize(v));
+ vec2 pn2=uBN.xy;float pl=length(pn2);pn2=pl>1e-3?pn2/pl:vec2(0.,1.);vec2 q=vec2(pn2.y*p.x-pn2.x*p.y,pn2.x*p.x+pn2.y*p.y);
+ if(uAcc>.7&&!cap){float jy=q.y/max(pl,.08);float jx=abs(q.x)/(.05+abs(jy)*.05);col+=tr*vec3(.55,.7,1.)*exp(-jx*jx)*smoothstep(1.5,2.5,abs(q.y))*exp(-abs(jy)*.2)*pl*(.5+.7*fbm(vec3(q.x*4.,jy*1.5-sign(q.y)*uT*2.,1.)))*(uAcc-.7)*2.5;}
+ vec3 c=col+tr*sk*skyA;float mx=max(c.r,max(c.g,c.b));c*=(1.-exp(-mx*1.5))/max(mx,1e-4);
+ float a=clamp((1.-tr)+tr*skyA,0.,1.);a=max(a,clamp(mx,0.,1.));return vec4(c,a);}
 void main(){vec2 p=vp*uExt;int K=int(uKind+.5);
  if(K==0){float pr=1.+uPulse;vec2 q=p/pr;float r=length(q);float px=uPx/pr;vec3 ci=vec3(0.),co=vec3(0.);float cov=clamp((1.-r)/px*.5+.5,0.,1.);
   if(r<1.+px)ci=starIn(q/max(r,1.)*min(r,1.));if(r>1.-px)co=starOut(q/max(r,1e-4)*max(r,1.));
@@ -856,7 +869,7 @@ function pgInit(){if(PG.gl!==null)return PG.gl;const c=document.createElement('c
  gl.useProgram(pr);gl.bindVertexArray(gl.createVertexArray());
  for(const n of['uT','uExt','uKind','uSeed','uGiant','uAct','uDim','uPulse','uPx','uPT','uWat','uBio','uTeq','uAtm','uAcc','uIce','uCol','uAtmCol','uL','uBN','uCam'])PG.u[n]=gl.getUniformLocation(pr,n);
  PG.c=c;PG.gl=gl;return gl;}
-function pgRender(size,U){const gl=pgInit();if(!gl)return null;size=Math.max(16,Math.min(720,Math.round(size)));
+function pgRender(size,U){const gl=pgInit();if(!gl)return null;size=Math.max(16,Math.min(U&&U.uKind===2?480:720,Math.round(size)));
  if(PG.c.width!==size){PG.c.width=PG.c.height=size;}gl.viewport(0,0,size,size);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
  const d={uT:0,uExt:1,uKind:0,uSeed:0,uGiant:0,uAct:0.3,uDim:1,uPulse:0,uPx:0.01,uPT:2,uWat:0,uBio:0,uTeq:300,uAtm:0,uAcc:0.5,uIce:0,uL:[-.65,.45,.62],uBN:[0,.98,.2],uCam:[1,0,0,0,1,0,0,0,1],...U};d.uPx=2*d.uExt/size*1.5;
  for(const k in d){const l=PG.u[k];if(!l)continue;const v=d[k];if(Array.isArray(v)){if(v.length===9)gl.uniformMatrix3fv(l,false,v);else gl.uniform3fv(l,v);}else gl.uniform1f(l,v);}
@@ -1192,12 +1205,13 @@ function renderSel(){const el=$('selcard');
  if(filterZ){el.hidden=false;const e=ELEM[filterZ];setChip(el,chip(`Dove c'è più ${e.n.toLowerCase()} · tocca un punto`,'',[]),a=>{if(a==='x')clearFilter();});return;}
  if(!sel){el.hidden=true;return;}let h='';const st=probe.st;
  if(sel.kind==='galaxy'){const G=sel.G;h=chip(`${G.name} · ${G.stars} stelle`,`diametro ~${Math.round(G.R*2)} unità · ${G.planets} pianeti${G.habit?' ('+G.habit+' abitabili)':''}${G.life?' · vita su '+G.life:''} · ${G.bh} buchi neri · ${G.wd} nane bianche · ${G.ns} stelle di neutroni. Tocca una stella o un pianeta.`,[]);}
- else if(sel.kind==='star'){const I=sel.info.sys||{cls:'?',T:0,L:0,pl:0};h=chip(`Stella ${I.cls} · ${starPhase(st)||'…'}`,`~${I.T.toLocaleString('it-IT')} K in superficie · luminosità ${I.L.toLocaleString('it-IT',{maximumSignificantDigits:2})}× · ${I.pl} ${I.pl===1?'pianeta':'pianeti'}${I.life?' · vita':''}`,I.pl?[['sys','Pianeti']]:[]);}
- else if(sel.kind==='planet'){const t=planetType(sel.info);h=chip(`${PTYPE[t][0]} · ${Math.round(sel.info.teq-273)} °C${sel.info.bio>0?' · vita':''}`,`metallicità ${(sel.info.Z*100).toFixed(2)}%${sel.info.bio>0?' · biomassa '+(sel.info.bio*100).toFixed(0)+'%':''}`,sel.host>=0?[['sys','Sistema']]:[]);}
+ else if(sel.kind==='star'){const I=sel.info.sys||{cls:'?',T:0,L:0,pl:0};h=chip(`Stella ${I.cls} · ${starPhase(st)||'…'}`,`~${I.T.toLocaleString('it-IT')} K in superficie · luminosità ${I.L.toLocaleString('it-IT',{maximumSignificantDigits:2})}× · raggio reale stimato ~${starRadius(I,st).toLocaleString('it-IT',{maximumSignificantDigits:2})} volte il Sole · ${I.pl} ${I.pl===1?'pianeta':'pianeti'}${I.life?' · vita':''}`,I.pl?[['sys','Pianeti']]:[]);}
+ else if(sel.kind==='planet'){const t=planetType(sel.info);h=chip(`${PTYPE[t][0]} · ${Math.round(sel.info.teq-273)} °C${sel.info.bio>0?' · vita':''}`,`raggio reale tipico ~${({giant:sel.info.teq<120?4:10,lava:1,hot:1,ocean:1,desert:0.8,cold:0.6,ice:0.5})[t]} volte la Terra (la Terra è 109 volte più piccola del Sole) · metallicità ${(sel.info.Z*100).toFixed(2)}%${sel.info.bio>0?' · biomassa '+(sel.info.bio*100).toFixed(0)+'%':''}`,sel.host>=0?[['sys','Sistema']]:[]);}
  else{const L={bh:'Buco nero',wd:'Nana bianca',ns:'Stella di neutroni',dm:'Materia oscura',gas:'Nube di gas'}[sel.kind];h=chip(L+(sel.kind==='bh'&&st?' · '+(st.mass/(g?g.mGas:1)).toLocaleString('it-IT',{maximumFractionDigits:1})+' nubi':''),{bh:'Inghiotte il gas che gli passa troppo vicino. Il disco luminoso è il gas che sta cadendo.',wd:'Il nucleo spento di una stella come il Sole. Può esplodere come supernova Ia.',ns:'Il nucleo collassato di una supernova: ruota velocissimo ed emette fasci di radiazione.',gas:'Gas interstellare.'}[sel.kind]||'',[]);}
  el.hidden=sys.active;
  setChip(el,h,a=>{if(a==='x'){clearSel();return;}
   if(a==='sys'){if(sel.kind==='star'){setFollow(sel.i,'stella');flyTo(ENTER_D*0.6);probe.on=false;}else if(sel.kind==='planet'&&sel.host>=0){pendingPlanet=sel.i;setFollow(sel.host,'stella');flyTo(ENTER_D*0.6);probe.on=false;}}});}
+function starRadius(I,st){const T=st&&st.A0<0.35?3500:Math.max(2500,I.T||5772);return Math.sqrt(Math.max(1e-4,I.L||1))*Math.pow(5772/T,2);}
 function planetType(p){if(p.teq>1000)return'lava';if(p.teq>373)return'hot';if(p.teq>=273)return p.wat>3e-4?'ocean':'desert';if(p.Z>0.02&&p.teq<170)return'giant';if(p.teq<120)return'ice';return'cold';}
 // ================= sonda: vista ravvicinata dall'esterno =================
 const probe={on:false,kind:'',D0:3,t0:0,st:null,flares:[],gran:null};

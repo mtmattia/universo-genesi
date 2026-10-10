@@ -7,3 +7,5 @@ window.go=()=>{const o=document.getElementById('o').getContext('2d');o.fillStyle
   c=pgRender(300,{uKind:2,uT:3,uExt:5.5,uAcc:.9,uBN:tv([0.2,1,-0.1])});o.drawImage(c,i*300,300);});
  return [0,'x',document.getElementById('o').toDataURL()];};
 </script></body></html>
+<script>window.go2=()=>{const o=document.getElementById('o').getContext('2d');o.fillStyle='#04050a';o.fillRect(0,0,1200,600);
+ [[0,.35,0.2],[1.3,.35,0.45],[2.6,.8,0.7],[0,1.3,0.9]].forEach(([yw,pt,tt],i)=>{const B=cb(yw,pt),M=[...B.x,...B.y,...B.z];const c=pgRender(300,{uKind:3,uT:tt,uExt:14,uAct:1,uCam:M});o.drawImage(c,i*300,150);});return [0,'x',document.getElementById('o').toDataURL()];};</script>

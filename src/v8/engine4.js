@@ -226,24 +226,31 @@ fn rampZ(t:f32)->vec3<f32>{var c=array<vec3<f32>,5>(vec3(0.43,0.55,0.84),vec3(0.
  let x=clamp(t,0.0,0.9999)*4.0;let k=u32(floor(x));return mix(c[k],c[k+1u],fract(x));}
 fn rampB(t:f32)->vec3<f32>{var c=array<vec3<f32>,6>(vec3(1.0,0.42,0.16),vec3(1.0,0.66,0.38),vec3(1.0,0.88,0.70),vec3(1.0,0.97,0.93),vec3(0.80,0.87,1.0),vec3(0.58,0.70,1.0));
  let x=clamp(t,0.0,0.9999)*5.0;let k=u32(floor(x));return mix(c[k],c[k+1u],fract(x));}
-fn realCol(u:f32,A:vec4<f32>,B:vec4<f32>,D:vec4<f32>,b0:vec4<f32>,b1:vec4<f32>,rho:f32)->vec3<f32>{
- if(D.x==0.0&&B.w>p.lumStar){var x=clamp(log2(B.w/p.lumStar)/10.0,0.0,1.0);if(A.x<0.35){x*=0.25;}return rampB(x);}
- if(D.x==0.0&&b0.x>0.0){return vec3<f32>(0.35,0.85,0.45);}
- if(D.x==0.0&&b0.z>0.0){let te=b0.z;if(te<273.0){return mix(vec3<f32>(0.55,0.70,0.95),vec3<f32>(0.85,0.92,1.0),clamp((273.0-te)/150.0,0.0,1.0));}if(te<=373.0){return vec3<f32>(0.25,0.55,1.0);}return mix(vec3<f32>(0.85,0.55,0.30),vec3<f32>(1.0,0.35,0.12),clamp((te-373.0)/800.0,0.0,1.0));}
- let t=(log2(max(u,1e-5))*0.30103+5.0)/3.6;let zm=clamp(sqrt(max(0.0,1.0-A.x-A.y)/0.15),0.0,1.0);
- let cold=mix(vec3<f32>(0.62,0.33,0.17),vec3<f32>(0.40,0.19,0.11),clamp(b1.z*4.0+zm*0.5,0.0,1.0));
- let warm=vec3<f32>(0.36,0.52,1.0);
- let hii=mix(vec3<f32>(0.95,0.20,0.40),vec3<f32>(0.20,0.85,0.78),zm*0.8);
- let xr=vec3<f32>(0.62,0.58,1.0);
- var c=mix(cold,warm,smoothstep(0.22,0.40,t));c=mix(c,hii,smoothstep(0.45,0.62,t));c=mix(c,xr,smoothstep(0.82,0.95,t));return c;}
+fn pl(lam:f32,T:f32)->f32{let x=14388.0/(lam*max(T,100.0));return 1.5399*pow(x,4.0)/(exp(min(x,80.0))-1.0+1e-9);}
+// banda: 2 visibile, 3 infrarosso, 4 raggi X, 5 gamma, 6 radio. Gas: brillanza superficiale fisica (HDR). Stelle: colore x frazione di luce nella banda.
+fn bandCol(md:u32,u:f32,A:vec4<f32>,B:vec4<f32>,D:vec4<f32>,b0:vec4<f32>,b1:vec4<f32>,rho:f32,h:f32)->vec3<f32>{
+ let t=(log2(max(u,1e-5))*0.30103+5.0)/3.6;let zm=clamp(sqrt(max(0.0,1.0-A.x-A.y)/0.15),0.0,1.0);let fe=clamp(B.z/0.0026,0.0,1.0);
+ if(D.x==0.0&&B.w>p.lumStar){let Ts=select(clamp(5772.0*pow(B.w/0.004,0.13),2500.0,40000.0),3500.0,A.x<0.35);
+  if(md==2u){var x=clamp(log2(B.w/p.lumStar)/10.0,0.0,1.0);if(A.x<0.35){x*=0.25;}return rampB(x);}
+  if(md==3u){return vec3<f32>(1.0,0.55,0.3)*min(4.0,pl(2.2,Ts)/pl(2.2,5772.0))*0.5;}
+  if(md==4u){return vec3<f32>(0.6,0.6,1.0)*0.002*(1.0-smoothstep(5000.0,7000.0,Ts));}
+  return vec3<f32>(0.0);}
+ if(D.x==0.0&&b0.z>0.0){if(md==3u){return vec3<f32>(1.0,0.6,0.35)*clamp(b0.z/300.0,0.1,3.0)*0.06;}if(md==2u){return select(vec3<f32>(0.55,0.6,0.7),vec3<f32>(0.35,0.85,0.45),b0.x>0.0)*0.02;}return vec3<f32>(0.0);}
+ let xi=smoothstep(0.45,0.62,t);let fl=select(0.0,(b0.w-250.0)/50.0,b0.w>250.0);let em=rho*rho*h;
+ if(md==2u){let hii=mix(vec3<f32>(0.95,0.22,0.42),vec3<f32>(0.22,0.85,0.78),zm*0.8);return hii*0.012*em*xi*(1.0-smoothstep(0.82,0.95,t))+vec3<f32>(1.0,0.85,0.7)*fl*2.0;}
+ if(md==3u){let dm=rho*h*(0.04+zm)*(1.0-smoothstep(0.4,0.62,t));return mix(vec3<f32>(0.7,0.18,0.06),vec3<f32>(1.0,0.75,0.45),clamp(t*2.2,0.0,1.0))*dm*0.06;}
+ if(md==4u){let xr=mix(vec3<f32>(0.45,0.55,1.0),vec3<f32>(0.95,0.55,1.0),fe);return xr*0.004*em*smoothstep(0.7,0.9,t)*sqrt(max(t,0.1)*1.5)+vec3<f32>(0.7,0.7,1.0)*fl*1.5;}
+ if(md==5u){return vec3<f32>(1.0,0.35,0.9)*(fl*4.0+0.0004*rho*h);}
+ let hi=rho*h*(1.0-xi);return vec3<f32>(1.0,0.55,0.2)*hi*0.025+vec3<f32>(0.9,0.4,0.6)*0.003*rho*h*smoothstep(0.65,0.85,t);}
 @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3<u32>){let i=g.x;if(i>=p.N){return;}
  let ps=pos[i];let u=vel[i].w;let A=comp[4u*i];let B=comp[4u*i+1u];let D=comp[4u*i+3u];let b0=bio[2u*i];let b1=bio[2u*i+1u];
- var col:vec3<f32>;if(p.mode==2u){col=realCol(u,A,B,D,b0,b1,dens[i].x);}else if(p.mode==0u){col=rampT((log2(max(u,1e-5))*0.30103+5.0)/3.6);}else{col=rampZ(sqrt(max(0.0,1.0-A.x-A.y)/0.15));}
+ var col:vec3<f32>;if(p.mode>=2u){col=bandCol(p.mode,u,A,B,D,b0,b1,min(dens[i].x,1e4),ps.w);}else if(p.mode==0u){col=rampT((log2(max(u,1e-5))*0.30103+5.0)/3.6);}else{col=rampZ(sqrt(max(0.0,1.0-A.x-A.y)/0.15));}
  var ring=0.0;if(D.x==0.0){if(b0.z>0.0){ring=select(1.0,2.0,b0.z>=273.0&&b0.z<=373.0);}if(b0.x>0.0){ring=3.0;}}
  var fl=0.0;if(b0.w>250.0){fl=(b0.w-250.0)/50.0;}
  rb[5u*i]=vec4<f32>(ps.xyz,ps.w);rb[5u*i+1u]=vec4<f32>(col,select(0.0,B.w,B.w>p.lumStar&&D.x==0.0));rb[5u*i+2u]=vec4<f32>(ring,b0.y,b0.x,min(dens[i].x,1e4));
  rb[5u*i+3u]=vec4<f32>(b0.z,max(0.0,1.0-A.x-A.y),b1.x,b1.y);let C=comp[4u*i+2u];let fv=p.fw0*A.x+p.fw1*A.y+p.fw2*A.z+p.fw3*A.w+p.fw4*B.x+p.fw5*B.y+p.fw6*B.z+p.fw7*C.x+p.fw8*C.y+p.fw9*C.z;
- let mt=select(-1.0,fv,p.fon>0.5&&D.x==0.0);
+ let tq=(log2(max(u,1e-5))*0.30103+5.0)/3.6;let zq=clamp(sqrt(max(0.0,1.0-A.x-A.y)/0.15),0.0,1.0);let dust=select(0.0,(1.0-smoothstep(0.2,0.45,tq))*(0.08+zq*2.5+b1.z*40.0)*min(dens[i].x,1e4)*ps.w*0.25,p.mode==2u&&D.x==0.0&&B.w<=p.lumStar&&b0.z<=0.0);
+ let mt=select(dust,select(-1.0,fv,D.x==0.0),p.fon>0.5);
  rb[5u*i+4u]=vec4<f32>(D.x,D.y/max(p.mGas,1e-9),D.z/max(p.mGas,1e-9),mt);}`;
 const RS=`
 struct V{vp:mat4x4<f32>,vw:f32,vh:f32,px:f32,cloudA:f32,cloudK:f32,cloudMax:f32,ptA:f32,dm:f32,fon:f32,q1:f32,q2:f32,q3:f32};
@@ -254,20 +261,44 @@ fn place(c:vec4<f32>,uv:vec2<f32>,rpx:f32)->vec4<f32>{return vec4<f32>(c.xy+uv*v
 const OFF=vec4<f32>(2.,2.,2.,1.);
 @vertex fn vcloud(@builtin(vertex_index) vi:u32,@location(0) a:vec4<f32>,@location(1) b:vec4<f32>,@location(2) e:vec4<f32>,@location(3) t:vec4<f32>)->O{var o:O;let uv=corner(vi);let c=v.vp*vec4<f32>(a.xyz,1.0);
  let rpx=min(a.w*v.cloudK*v.vh*0.5/max(c.w,1e-4),v.cloudMax);
- if(t.x!=0.0||c.w<=0.0||rpx<0.6||v.fon>0.5){o.pos=OFF;return o;}
+ if(t.x!=0.0||c.w<=0.0||rpx<0.6||v.fon>0.5||(v.q2>0.5&&(b.w>0.0||e.x>=1.0))){o.pos=OFF;return o;}
+ if(v.q2>0.5){let mx=max(b.r,max(b.g,b.b));if(mx<1e-4){o.pos=OFF;return o;}o.pos=place(c,uv,rpx);o.uv=uv;o.col=vec4<f32>(b.rgb*min(1.0,rpx/2.0),1.0);o.ex=vec4<f32>(0.);return o;}
  o.pos=place(c,uv,rpx);o.uv=uv;let dens=clamp(0.6/sqrt(1.0+e.w*0.5),0.12,0.6);let lu=dot(b.rgb,vec3<f32>(0.3,0.6,0.1));o.col=vec4<f32>(b.rgb,v.cloudA*dens*min(1.0,rpx/3.0)/(1.0+lu*lu*4.0));o.ex=vec4<f32>(0.);return o;}
+@vertex fn vdust(@builtin(vertex_index) vi:u32,@location(0) a:vec4<f32>,@location(1) b:vec4<f32>,@location(2) e:vec4<f32>,@location(3) t:vec4<f32>)->O{var o:O;let uv=corner(vi);let c=v.vp*vec4<f32>(a.xyz,1.0);
+ let rpx=min(a.w*v.cloudK*v.vh*0.5/max(c.w,1e-4),v.cloudMax*1.4);
+ if(t.x!=0.0||c.w<=0.0||rpx<1.0||v.fon>0.5||t.w<0.02){o.pos=OFF;return o;}
+ o.pos=place(c,uv,rpx);o.uv=uv;o.col=vec4<f32>(0.,0.,0.,(1.0-exp(-t.w))*0.85*min(1.0,rpx/4.0));o.ex=vec4<f32>(0.);return o;}
+@fragment fn fdust(i:O)->@location(0) vec4<f32>{let r2=dot(i.uv,i.uv);if(r2>1.0){discard;}let a=i.col.a*exp(-r2*3.0);return vec4<f32>(0.,0.,0.,a);}
 @fragment fn fcloud(i:O)->@location(0) vec4<f32>{let r2=dot(i.uv,i.uv);if(r2>1.0){discard;}let a=i.col.a*exp(-r2*3.5);return vec4<f32>(i.col.rgb*a,a);}
-@vertex fn vpt(@builtin(vertex_index) vi:u32,@location(0) a:vec4<f32>,@location(1) b:vec4<f32>,@location(2) e:vec4<f32>,@location(3) t:vec4<f32>)->O{var o:O;let uv=corner(vi);let c=v.vp*vec4<f32>(a.xyz,1.0);
+@vertex fn vpt(@builtin(vertex_index) vi:u32,@builtin(instance_index) ii:u32,@location(0) a:vec4<f32>,@location(1) b:vec4<f32>,@location(2) e:vec4<f32>,@location(3) t:vec4<f32>)->O{var o:O;let uv=corner(vi);let c=v.vp*vec4<f32>(a.xyz,1.0);
  if(c.w<=0.0||t.x>4.5){o.pos=OFF;return o;}
  var rpx=v.px;var col=vec4<f32>(b.rgb,v.ptA);var star=0.0;
  if(v.fon>0.5){if(t.w<=v.q1){o.pos=OFF;return o;}o.pos=place(c,uv,v.px*2.6);o.uv=uv;o.col=vec4<f32>(1.0,0.84,0.48,1.0);o.ex=vec4<f32>(1.0,0.,0.,0.);return o;}
+ if(v.q2>0.5){let bd=u32(v.q2+0.5)-1u;let dd=pow(v.q3/max(c.w,1e-3),2.0);var Bf=0.0;var cc=vec3<f32>(1.0);
+  let ph=fract(sin(f32(ii)*12.9898)*43758.5)*6.2831;let per=0.4+fract(f32(ii)*0.618)*1.6;let fla=pow(max(0.0,sin(v.q1*6.2831/per+ph)),24.0);
+  var pal=array<vec3<f32>,5>(vec3<f32>(1.0,0.8,0.6),vec3<f32>(1.0,0.5,0.25),vec3<f32>(0.6,0.6,1.0),vec3<f32>(1.0,0.35,0.9),vec3<f32>(1.0,0.55,0.2));
+  if(t.x==1.0){o.pos=OFF;return o;}
+  if(t.x==4.0){let ac=clamp(log2(1.0+t.z*400.0)*0.3,0.0,1.0);var m=array<f32,5>(0.6,1.0,8.0,3.0,5.0);Bf=ac*m[bd]*dd*0.2;if(bd==3u&&ac<0.5){Bf=0.0;}cc=pal[bd];}
+  else if(t.x==3.0){var m=array<f32,5>(0.05,0.02,1.5,0.0,0.0);var f=array<f32,5>(2.0,0.0,6.0,60.0,80.0);Bf=(m[bd]+f[bd]*fla)*dd*0.05;cc=select(pal[bd],vec3<f32>(0.6,0.8,1.0),bd==0u);}
+  else if(t.x==2.0){var m=array<f32,5>(0.08,0.02,0.15,0.0,0.0);Bf=m[bd]*dd;cc=select(pal[bd],vec3<f32>(0.8,0.88,1.0),bd==0u);}
+  else if(b.w>0.0){Bf=min(2e4,(b.w/0.004)*dd*0.5);cc=b.rgb;}
+  else{let mx=max(b.r,max(b.g,b.b));if(mx<2e-3){o.pos=OFF;return o;}o.pos=place(c,uv,v.px*1.3);o.uv=uv;o.col=vec4<f32>(b.rgb*0.35,1.0);o.ex=vec4<f32>(0.);return o;}
+  if(Bf*max(cc.r,max(cc.g,cc.b))<1e-3){o.pos=OFF;return o;}
+  let sz=clamp(2.0+2.2*log2(1.0+Bf),2.0,16.0);o.pos=place(c,uv,v.px*sz);o.uv=uv;o.col=vec4<f32>(cc*min(Bf,2e4),1.0);o.ex=vec4<f32>(3.0,Bf,sz,0.);return o;}
+ if(t.x==4.0&&v.q2>0.5){let ac=clamp(log2(1.0+t.z*400.0)*0.3,0.0,1.0);if(ac<0.02){o.pos=OFF;return o;}let Bf=ac*3.0*pow(v.q3/max(c.w,1e-3),2.0)*0.2;let sz=clamp(2.0+2.0*log2(1.0+Bf),2.0,10.0);o.pos=place(c,uv,v.px*sz);o.uv=uv;o.col=vec4<f32>(vec3<f32>(1.0,0.75,0.5)*Bf,1.0);o.ex=vec4<f32>(3.0,Bf,sz,0.);return o;}
  if(t.x==4.0){rpx=v.px*clamp(3.0+log2(1.0+t.y)*1.6,3.0,22.0);o.pos=place(c,uv,rpx);o.uv=uv;o.col=vec4<f32>(1.0,0.62,0.25,clamp(0.35+log2(1.0+t.z*200.0)*0.25,0.35,1.0));o.ex=vec4<f32>(2.0,0.,0.,0.);return o;}
  if(t.x==1.0){if(v.dm<0.5){o.pos=OFF;return o;}col=vec4<f32>(0.55,0.42,1.0,0.28);}
  else if(t.x==2.0){rpx=v.px*2.2;col=vec4<f32>(0.78,0.88,1.0,1.0);star=1.0;}
- else if(t.x==3.0){rpx=v.px*2.0;col=vec4<f32>(0.45,1.0,0.95,1.0);star=1.0;}
+ else if(t.x==3.0){if(v.q2>0.5){let ph=fract(sin(f32(ii)*12.9898)*43758.5)*6.2831;let per=0.4+fract(f32(ii)*0.618)*1.6;let fl=pow(max(0.0,sin(v.q1*6.2831/per+ph)),24.0);
+  let Bf=(0.15+60.0*fl)*pow(v.q3/max(c.w,1e-3),2.0)*0.05+0.05;let sz=clamp(2.0+2.2*log2(1.0+Bf),2.0,14.0);o.pos=place(c,uv,v.px*sz);o.uv=uv;o.col=vec4<f32>(vec3<f32>(0.6,0.8,1.0)*Bf,1.0);o.ex=vec4<f32>(3.0,Bf,sz,0.);return o;}
+  rpx=v.px*2.0;col=vec4<f32>(0.45,1.0,0.95,1.0);star=1.0;}
+ else if(b.w>0.0&&v.q2>0.5){let Bf=min(2e4,(b.w/0.004)*pow(v.q3/max(c.w,1e-3),2.0)*0.5);let sz=clamp(2.0+2.2*log2(1.0+Bf),2.0,16.0);o.pos=place(c,uv,v.px*sz);o.uv=uv;o.col=vec4<f32>(b.rgb*Bf,1.0);o.ex=vec4<f32>(3.0,Bf,sz,0.);return o;}
  else if(b.w>0.0){rpx=v.px*clamp(2.0+sqrt(b.w)*14.0,2.0,6.0);col=select(vec4<f32>(1.0,0.93,0.75,1.0),vec4<f32>(b.rgb,1.0),v.q2>0.5);star=1.0;}
  o.pos=place(c,uv,rpx);o.uv=uv;o.col=col;o.ex=vec4<f32>(star,0.,0.,0.);return o;}
 @fragment fn fpt(i:O)->@location(0) vec4<f32>{let r2=dot(i.uv,i.uv);if(r2>1.0){discard;}
+ if(i.ex.x>2.5){let r=sqrt(r2);let q=r*i.ex.z;let core=exp(-q*q*0.7);let halo=0.05*exp(-q*0.8)*min(1.0,i.ex.y*0.3);var spk=0.0;
+  if(i.ex.y>4.0){let ax=abs(i.uv.x)*i.ex.z;let ay=abs(i.uv.y)*i.ex.z;spk=(exp(-ay*ay*1.5)*exp(-ax*0.45)+exp(-ax*ax*1.5)*exp(-ay*0.45))*0.18*min(1.0,i.ex.y/40.0);}
+  let fade=1.0-smoothstep(0.75,1.0,r);return vec4<f32>(i.col.rgb*(core+halo+spk)*fade,0.0);}
  var a=i.col.a;if(i.ex.x>1.5){let r=sqrt(r2);a=0.8*i.col.a*exp(-pow((r-0.36)*5.0,2.0))*(1.0-r);}else if(i.ex.x>0.5){a=0.9*exp(-r2*16.0)+0.05*exp(-r2*3.0);}else{a*=1.0-smoothstep(0.55,1.0,sqrt(r2));}
  return vec4<f32>(i.col.rgb*a,a);}
 @vertex fn vring(@builtin(vertex_index) vi:u32,@location(0) a:vec4<f32>,@location(1) b:vec4<f32>,@location(2) e:vec4<f32>,@location(3) t:vec4<f32>)->O{var o:O;let uv=corner(vi);let c=v.vp*vec4<f32>(a.xyz,1.0);
@@ -278,6 +309,14 @@ const OFF=vec4<f32>(2.,2.,2.,1.);
  if(i.ex.x>0.5){if(r>0.32){discard;}return vec4<f32>(0.0,0.0,0.0,1.0);}
  let a=i.col.a*(1.0-smoothstep(0.0,0.18,abs(r-0.78)));if(a<0.01){discard;}return vec4<f32>(i.col.rgb*a,a);}
 `;
+const PS=`
+@group(0) @binding(0) var src:texture_2d<f32>;@group(0) @binding(1) var smp:sampler;@group(0) @binding(2) var<uniform> pu:vec4<f32>;@group(0) @binding(3) var blm:texture_2d<f32>;
+struct VO{@builtin(position) p:vec4<f32>,@location(0) uv:vec2<f32>};
+@vertex fn vfs(@builtin(vertex_index) i:u32)->VO{var o:VO;let q=vec2<f32>(f32((i<<1u)&2u),f32(i&2u));o.p=vec4<f32>(q*2.0-1.0,0.,1.);o.uv=vec2<f32>(q.x,1.0-q.y);return o;}
+@fragment fn fdown(i:VO)->@location(0) vec4<f32>{let ts=1.0/vec2<f32>(textureDimensions(src));var c=vec3<f32>(0.);for(var y=-1;y<=1;y++){for(var x=-1;x<=1;x++){c+=textureSampleLevel(src,smp,i.uv+vec2<f32>(f32(x),f32(y))*ts*1.5,0.).rgb;}}c/=9.0;let l=max(c.r,max(c.g,c.b));return vec4<f32>(c*max(l-pu.w,0.)/max(l,1e-4),1.);}
+@fragment fn fblur(i:VO)->@location(0) vec4<f32>{let ts=pu.xy/vec2<f32>(textureDimensions(src));var w=array<f32,5>(0.227,0.194,0.121,0.054,0.016);var c=textureSampleLevel(src,smp,i.uv,0.).rgb*w[0];for(var k=1;k<5;k++){let o=ts*f32(k)*1.6;c+=(textureSampleLevel(src,smp,i.uv+o,0.).rgb+textureSampleLevel(src,smp,i.uv-o,0.).rgb)*w[k];}return vec4<f32>(c,1.);}
+@fragment fn fcomp(i:VO)->@location(0) vec4<f32>{var c=(textureSampleLevel(src,smp,i.uv,0.).rgb+textureSampleLevel(blm,smp,i.uv,0.).rgb*0.3)*pu.z;
+ c=clamp((c*(2.51*c+0.03))/(c*(2.43*c+0.59)+0.14),vec3<f32>(0.),vec3<f32>(1.));let n=fract(sin(dot(i.p.xy,vec2<f32>(12.9898,78.233)))*43758.5453)/255.0;return vec4<f32>(c+vec3<f32>(0.012,0.015,0.03)*(1.0-c)+n,1.);}`;
 class GenesisGPU{
  static async create(canvas,opts){const g=new GenesisGPU();await g.init(canvas,opts||{});return g;}
  async init(canvas,o){
@@ -296,8 +335,15 @@ class GenesisGPU{
    const over={color:{srcFactor:'one',dstFactor:'one-minus-src-alpha',operation:'add'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha',operation:'add'}};
    const rp=(vs,fs,bl,dw)=>d.createRenderPipeline({layout:'auto',vertex:{module:rm,entryPoint:vs,buffers:vb},fragment:{module:rm,entryPoint:fs,targets:[{format:this.fmt,blend:bl}]},primitive:{topology:'triangle-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:dw,depthCompare:'less'}});
    this.rp={cloud:rp('vcloud','fcloud',add,false),pt:rp('vpt','fpt',add,false),ring:rp('vring','fring',over,true)};
+   const mul={color:{srcFactor:'zero',dstFactor:'one-minus-src-alpha',operation:'add'},alpha:{srcFactor:'zero',dstFactor:'one',operation:'add'}};
+   const rpH=(vs,fs,bl,dw)=>d.createRenderPipeline({layout:'auto',vertex:{module:rm,entryPoint:vs,buffers:vb},fragment:{module:rm,entryPoint:fs,targets:[{format:'rgba16float',blend:bl}]},primitive:{topology:'triangle-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:dw,depthCompare:'less'}});
+   this.rpH={cloud:rpH('vcloud','fcloud',add,false),pt:rpH('vpt','fpt',add,false),ring:rpH('vring','fring',over,true),dust:rpH('vdust','fdust',mul,false)};
+   const pm=mk(PS);const pp=(fs,fmt)=>d.createRenderPipeline({layout:'auto',vertex:{module:pm,entryPoint:'vfs'},fragment:{module:pm,entryPoint:fs,targets:[{format:fmt}]},primitive:{topology:'triangle-list'}});
+   this.pp={down:pp('fdown','rgba16float'),blur:pp('fblur','rgba16float'),comp:pp('fcomp',this.fmt)};this.smp=d.createSampler({magFilter:'linear',minFilter:'linear',addressModeU:'clamp-to-edge',addressModeV:'clamp-to-edge'});
+   this.pub=[0,1,2].map(()=>d.createBuffer({size:16,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST}));
    this.vub=d.createBuffer({size:112,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
-   this.rbg={};for(const k in this.rp)this.rbg[k]=d.createBindGroup({layout:this.rp[k].getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:this.vub}}]});}
+   this.rbg={};for(const k in this.rp)this.rbg[k]=d.createBindGroup({layout:this.rp[k].getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:this.vub}}]});
+   this.rbgH={};for(const k in this.rpH)this.rbgH[k]=d.createBindGroup({layout:this.rpH[k].getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:this.vub}}]});}
   const ub=Math.ceil(PWORDS*4/16)*16;this.ub=d.createBuffer({size:ub,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
   this.uarr=new ArrayBuffer(ub);this.u32=new Uint32Array(this.uarr);this.f32=new Float32Array(this.uarr);
  }
@@ -353,10 +399,11 @@ class GenesisGPU{
    d.queue.submit([e.finish()]);}
  }
  prep(mode){this.setU('mode',mode||0);this.dev.queue.writeBuffer(this.ub,0,this.uarr);const e=this.dev.createCommandEncoder();this.pass(e,'prep',Math.ceil(this.N/64));this.dev.queue.submit([e.finish()]);}
- render(vp,o){const d=this.dev,W=this.canvas.width,H=this.canvas.height;const f=new Float32Array(28);f.set(vp,0);f[16]=W;f[17]=H;f[18]=o.px;f[19]=o.cloudA;f[20]=o.cloudK;f[21]=o.cloudMax;f[22]=o.ptA;f[23]=o.dm?1:0;f[24]=o.fon?1:0;f[25]=o.fth||0;f[26]=o.real?1:0;
+ render(vp,o){const d=this.dev,W=this.canvas.width,H=this.canvas.height;const f=new Float32Array(28);f.set(vp,0);f[16]=W;f[17]=H;f[18]=o.px;f[19]=o.cloudA;f[20]=o.cloudK;f[21]=o.cloudMax;f[22]=o.ptA;f[23]=o.dm?1:0;f[24]=o.fon?1:0;f[25]=o.fon?(o.fth||0):(performance.now()/1000)%1000;f[26]=o.real?(o.band||1):0;f[27]=o.camD||1;
   d.queue.writeBuffer(this.vub,0,f);const e=d.createCommandEncoder();
   const tex=o.view?null:this.ctx.getCurrentTexture();const tw=o.view?(o.w||W):tex.width,th=o.view?(o.h||H):tex.height;
   if(!this.depth||this.depth.width!==tw||this.depth.height!==th){if(this.depth)this.depth.destroy();this.depth=d.createTexture({size:[tw,th],format:'depth24plus',usage:GPUTextureUsage.RENDER_ATTACHMENT});}
+  if(o.real&&this.rpH){this.renderHDR(e,o,tex,tw,th);d.queue.submit([e.finish()]);return;}
   const rp=e.beginRenderPass({colorAttachments:[{view:o.view||tex.createView(),clearValue:(this.clear||{r:0.016,g:0.02,b:0.04,a:1}),loadOp:'clear',storeOp:'store'}],depthStencilAttachment:{view:this.depth.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'discard'}});
   rp.setVertexBuffer(0,this.b.rb);
   // prima i buchi neri (scrivono la profondità): il gas davanti li vela, quello dietro viene nascosto
@@ -364,6 +411,21 @@ class GenesisGPU{
   if(o.cloudA>0){rp.setPipeline(this.rp.cloud);rp.setBindGroup(0,this.rbg.cloud);rp.draw(6,this.N);}
   rp.setPipeline(this.rp.pt);rp.setBindGroup(0,this.rbg.pt);rp.draw(6,this.N);
   rp.end();d.queue.submit([e.finish()]);}
+ ensurePost(tw,th){const d=this.dev;if(this.post&&this.post.w===tw&&this.post.h===th)return this.post;if(this.post){this.post.hdr.destroy();this.post.a.destroy();this.post.b.destroy();}
+  const U=GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING;const qw=Math.max(1,tw>>2),qh=Math.max(1,th>>2);
+  const P={w:tw,h:th,hdr:d.createTexture({size:[tw,th],format:'rgba16float',usage:U}),a:d.createTexture({size:[qw,qh],format:'rgba16float',usage:U}),b:d.createTexture({size:[qw,qh],format:'rgba16float',usage:U})};
+  const bg=(pl,srcT,ub,blT)=>{const en=[{binding:0,resource:srcT.createView()},{binding:1,resource:this.smp}];const lay=pl.getBindGroupLayout(0);if(ub)en.push({binding:2,resource:{buffer:ub}});if(blT)en.push({binding:3,resource:blT.createView()});return d.createBindGroup({layout:lay,entries:en});};
+  P.gDown=bg(this.pp.down,P.hdr,this.pub[0]);P.gH=bg(this.pp.blur,P.a,this.pub[1]);P.gV=bg(this.pp.blur,P.b,this.pub[2]);P.gComp=bg(this.pp.comp,P.hdr,this.pub[0],P.a);
+  return this.post=P;}
+ renderHDR(e,o,tex,tw,th){const d=this.dev,P=this.ensurePost(tw,th);const ex=o.exposure||1;
+  d.queue.writeBuffer(this.pub[0],0,new Float32Array([0,0,ex,1.2]));d.queue.writeBuffer(this.pub[1],0,new Float32Array([1,0,0,0]));d.queue.writeBuffer(this.pub[2],0,new Float32Array([0,1,0,0]));
+  const rp=e.beginRenderPass({colorAttachments:[{view:P.hdr.createView(),clearValue:{r:0,g:0,b:0,a:1},loadOp:'clear',storeOp:'store'}],depthStencilAttachment:{view:this.depth.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'discard'}});
+  rp.setVertexBuffer(0,this.b.rb);rp.setPipeline(this.rpH.ring);rp.setBindGroup(0,this.rbgH.ring);rp.draw(6,this.N);
+  rp.setPipeline(this.rpH.pt);rp.setBindGroup(0,this.rbgH.pt);rp.draw(6,this.N);
+  if(o.cloudA>0){rp.setPipeline(this.rpH.dust);rp.setBindGroup(0,this.rbgH.dust);rp.draw(6,this.N);rp.setPipeline(this.rpH.cloud);rp.setBindGroup(0,this.rbgH.cloud);rp.draw(6,this.N);}
+  rp.end();
+  const pass=(view,pl,g)=>{const r=e.beginRenderPass({colorAttachments:[{view,clearValue:{r:0,g:0,b:0,a:1},loadOp:'clear',storeOp:'store'}]});r.setPipeline(pl);r.setBindGroup(0,g);r.draw(3);r.end();};
+  pass(P.a.createView(),this.pp.down,P.gDown);pass(P.b.createView(),this.pp.blur,P.gH);pass(P.a.createView(),this.pp.blur,P.gV);pass(o.view||tex.createView(),this.pp.comp,P.gComp);}
  async readStats(){if(this.statBusy)return null;this.statBusy=true;const d=this.dev,e=d.createCommandEncoder();e.copyBufferToBuffer(this.b.st,0,this.b.stRead,0,NST*4);d.queue.submit([e.finish()]);
   try{await this.b.stRead.mapAsync(GPUMapMode.READ);}catch(err){this.statBusy=false;return null;}
   const a=new Uint32Array(this.b.stRead.getMappedRange().slice(0));this.b.stRead.unmap();this.statBusy=false;

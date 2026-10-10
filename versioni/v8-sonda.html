@@ -152,10 +152,10 @@ details ul{padding-left:18px;margin:8px 0 0}details li{margin-bottom:4px}
    <button id="center">Centra</button>
    <button id="nextg">Prossima galassia ›</button>
    <div class="seg" role="group" aria-label="Colore delle particelle">
-    <button id="mR" aria-pressed="true">Realistico</button><button id="mT" aria-pressed="false">Temperatura</button><button id="mZ" aria-pressed="false">Composizione</button>
+    <button id="mR" aria-pressed="true">Visibile</button><button id="mI" aria-pressed="false" class="gpuonly">Infrarosso</button><button id="mX" aria-pressed="false" class="gpuonly">Raggi X</button><button id="mG" aria-pressed="false" class="gpuonly">Gamma</button><button id="mD" aria-pressed="false" class="gpuonly">Radio</button><button id="mT" aria-pressed="false">Temperatura</button><button id="mZ" aria-pressed="false">Composizione</button>
    </div>
    <label class="lab" for="npart">Particelle <select id="npart"></select></label>
-   <label class="lab" for="cloud">Nubi <input id="cloud" type="range" min="0" max="100" step="1" value="55"></label>
+   <label class="lab" id="cloudlab" for="cloud" hidden>Nubi <input id="cloud" type="range" min="0" max="100" step="1" value="55"></label>
    <label class="lab" for="spd">Velocità <input id="spd" type="range" min="1" max="10" step="1" value="6"></label>
    <button id="spin" aria-pressed="true">Rotazione</button>
   </div>
@@ -594,24 +594,31 @@ fn rampZ(t:f32)->vec3<f32>{var c=array<vec3<f32>,5>(vec3(0.43,0.55,0.84),vec3(0.
  let x=clamp(t,0.0,0.9999)*4.0;let k=u32(floor(x));return mix(c[k],c[k+1u],fract(x));}
 fn rampB(t:f32)->vec3<f32>{var c=array<vec3<f32>,6>(vec3(1.0,0.42,0.16),vec3(1.0,0.66,0.38),vec3(1.0,0.88,0.70),vec3(1.0,0.97,0.93),vec3(0.80,0.87,1.0),vec3(0.58,0.70,1.0));
  let x=clamp(t,0.0,0.9999)*5.0;let k=u32(floor(x));return mix(c[k],c[k+1u],fract(x));}
-fn realCol(u:f32,A:vec4<f32>,B:vec4<f32>,D:vec4<f32>,b0:vec4<f32>,b1:vec4<f32>,rho:f32)->vec3<f32>{
- if(D.x==0.0&&B.w>p.lumStar){var x=clamp(log2(B.w/p.lumStar)/10.0,0.0,1.0);if(A.x<0.35){x*=0.25;}return rampB(x);}
- if(D.x==0.0&&b0.x>0.0){return vec3<f32>(0.35,0.85,0.45);}
- if(D.x==0.0&&b0.z>0.0){let te=b0.z;if(te<273.0){return mix(vec3<f32>(0.55,0.70,0.95),vec3<f32>(0.85,0.92,1.0),clamp((273.0-te)/150.0,0.0,1.0));}if(te<=373.0){return vec3<f32>(0.25,0.55,1.0);}return mix(vec3<f32>(0.85,0.55,0.30),vec3<f32>(1.0,0.35,0.12),clamp((te-373.0)/800.0,0.0,1.0));}
- let t=(log2(max(u,1e-5))*0.30103+5.0)/3.6;let zm=clamp(sqrt(max(0.0,1.0-A.x-A.y)/0.15),0.0,1.0);
- let cold=mix(vec3<f32>(0.62,0.33,0.17),vec3<f32>(0.40,0.19,0.11),clamp(b1.z*4.0+zm*0.5,0.0,1.0));
- let warm=vec3<f32>(0.36,0.52,1.0);
- let hii=mix(vec3<f32>(0.95,0.20,0.40),vec3<f32>(0.20,0.85,0.78),zm*0.8);
- let xr=vec3<f32>(0.62,0.58,1.0);
- var c=mix(cold,warm,smoothstep(0.22,0.40,t));c=mix(c,hii,smoothstep(0.45,0.62,t));c=mix(c,xr,smoothstep(0.82,0.95,t));return c;}
+fn pl(lam:f32,T:f32)->f32{let x=14388.0/(lam*max(T,100.0));return 1.5399*pow(x,4.0)/(exp(min(x,80.0))-1.0+1e-9);}
+// banda: 2 visibile, 3 infrarosso, 4 raggi X, 5 gamma, 6 radio. Gas: brillanza superficiale fisica (HDR). Stelle: colore x frazione di luce nella banda.
+fn bandCol(md:u32,u:f32,A:vec4<f32>,B:vec4<f32>,D:vec4<f32>,b0:vec4<f32>,b1:vec4<f32>,rho:f32,h:f32)->vec3<f32>{
+ let t=(log2(max(u,1e-5))*0.30103+5.0)/3.6;let zm=clamp(sqrt(max(0.0,1.0-A.x-A.y)/0.15),0.0,1.0);let fe=clamp(B.z/0.0026,0.0,1.0);
+ if(D.x==0.0&&B.w>p.lumStar){let Ts=select(clamp(5772.0*pow(B.w/0.004,0.13),2500.0,40000.0),3500.0,A.x<0.35);
+  if(md==2u){var x=clamp(log2(B.w/p.lumStar)/10.0,0.0,1.0);if(A.x<0.35){x*=0.25;}return rampB(x);}
+  if(md==3u){return vec3<f32>(1.0,0.55,0.3)*min(4.0,pl(2.2,Ts)/pl(2.2,5772.0))*0.5;}
+  if(md==4u){return vec3<f32>(0.6,0.6,1.0)*0.002*(1.0-smoothstep(5000.0,7000.0,Ts));}
+  return vec3<f32>(0.0);}
+ if(D.x==0.0&&b0.z>0.0){if(md==3u){return vec3<f32>(1.0,0.6,0.35)*clamp(b0.z/300.0,0.1,3.0)*0.06;}if(md==2u){return select(vec3<f32>(0.55,0.6,0.7),vec3<f32>(0.35,0.85,0.45),b0.x>0.0)*0.02;}return vec3<f32>(0.0);}
+ let xi=smoothstep(0.45,0.62,t);let fl=select(0.0,(b0.w-250.0)/50.0,b0.w>250.0);let em=rho*rho*h;
+ if(md==2u){let hii=mix(vec3<f32>(0.95,0.22,0.42),vec3<f32>(0.22,0.85,0.78),zm*0.8);return hii*0.012*em*xi*(1.0-smoothstep(0.82,0.95,t))+vec3<f32>(1.0,0.85,0.7)*fl*2.0;}
+ if(md==3u){let dm=rho*h*(0.04+zm)*(1.0-smoothstep(0.4,0.62,t));return mix(vec3<f32>(0.7,0.18,0.06),vec3<f32>(1.0,0.75,0.45),clamp(t*2.2,0.0,1.0))*dm*0.06;}
+ if(md==4u){let xr=mix(vec3<f32>(0.45,0.55,1.0),vec3<f32>(0.95,0.55,1.0),fe);return xr*0.004*em*smoothstep(0.7,0.9,t)*sqrt(max(t,0.1)*1.5)+vec3<f32>(0.7,0.7,1.0)*fl*1.5;}
+ if(md==5u){return vec3<f32>(1.0,0.35,0.9)*(fl*4.0+0.0004*rho*h);}
+ let hi=rho*h*(1.0-xi);return vec3<f32>(1.0,0.55,0.2)*hi*0.025+vec3<f32>(0.9,0.4,0.6)*0.003*rho*h*smoothstep(0.65,0.85,t);}
 @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3<u32>){let i=g.x;if(i>=p.N){return;}
  let ps=pos[i];let u=vel[i].w;let A=comp[4u*i];let B=comp[4u*i+1u];let D=comp[4u*i+3u];let b0=bio[2u*i];let b1=bio[2u*i+1u];
- var col:vec3<f32>;if(p.mode==2u){col=realCol(u,A,B,D,b0,b1,dens[i].x);}else if(p.mode==0u){col=rampT((log2(max(u,1e-5))*0.30103+5.0)/3.6);}else{col=rampZ(sqrt(max(0.0,1.0-A.x-A.y)/0.15));}
+ var col:vec3<f32>;if(p.mode>=2u){col=bandCol(p.mode,u,A,B,D,b0,b1,min(dens[i].x,1e4),ps.w);}else if(p.mode==0u){col=rampT((log2(max(u,1e-5))*0.30103+5.0)/3.6);}else{col=rampZ(sqrt(max(0.0,1.0-A.x-A.y)/0.15));}
  var ring=0.0;if(D.x==0.0){if(b0.z>0.0){ring=select(1.0,2.0,b0.z>=273.0&&b0.z<=373.0);}if(b0.x>0.0){ring=3.0;}}
  var fl=0.0;if(b0.w>250.0){fl=(b0.w-250.0)/50.0;}
  rb[5u*i]=vec4<f32>(ps.xyz,ps.w);rb[5u*i+1u]=vec4<f32>(col,select(0.0,B.w,B.w>p.lumStar&&D.x==0.0));rb[5u*i+2u]=vec4<f32>(ring,b0.y,b0.x,min(dens[i].x,1e4));
  rb[5u*i+3u]=vec4<f32>(b0.z,max(0.0,1.0-A.x-A.y),b1.x,b1.y);let C=comp[4u*i+2u];let fv=p.fw0*A.x+p.fw1*A.y+p.fw2*A.z+p.fw3*A.w+p.fw4*B.x+p.fw5*B.y+p.fw6*B.z+p.fw7*C.x+p.fw8*C.y+p.fw9*C.z;
- let mt=select(-1.0,fv,p.fon>0.5&&D.x==0.0);
+ let tq=(log2(max(u,1e-5))*0.30103+5.0)/3.6;let zq=clamp(sqrt(max(0.0,1.0-A.x-A.y)/0.15),0.0,1.0);let dust=select(0.0,(1.0-smoothstep(0.2,0.45,tq))*(0.08+zq*2.5+b1.z*40.0)*min(dens[i].x,1e4)*ps.w*0.25,p.mode==2u&&D.x==0.0&&B.w<=p.lumStar&&b0.z<=0.0);
+ let mt=select(dust,select(-1.0,fv,D.x==0.0),p.fon>0.5);
  rb[5u*i+4u]=vec4<f32>(D.x,D.y/max(p.mGas,1e-9),D.z/max(p.mGas,1e-9),mt);}`;
 const RS=`
 struct V{vp:mat4x4<f32>,vw:f32,vh:f32,px:f32,cloudA:f32,cloudK:f32,cloudMax:f32,ptA:f32,dm:f32,fon:f32,q1:f32,q2:f32,q3:f32};
@@ -622,20 +629,44 @@ fn place(c:vec4<f32>,uv:vec2<f32>,rpx:f32)->vec4<f32>{return vec4<f32>(c.xy+uv*v
 const OFF=vec4<f32>(2.,2.,2.,1.);
 @vertex fn vcloud(@builtin(vertex_index) vi:u32,@location(0) a:vec4<f32>,@location(1) b:vec4<f32>,@location(2) e:vec4<f32>,@location(3) t:vec4<f32>)->O{var o:O;let uv=corner(vi);let c=v.vp*vec4<f32>(a.xyz,1.0);
  let rpx=min(a.w*v.cloudK*v.vh*0.5/max(c.w,1e-4),v.cloudMax);
- if(t.x!=0.0||c.w<=0.0||rpx<0.6||v.fon>0.5){o.pos=OFF;return o;}
+ if(t.x!=0.0||c.w<=0.0||rpx<0.6||v.fon>0.5||(v.q2>0.5&&(b.w>0.0||e.x>=1.0))){o.pos=OFF;return o;}
+ if(v.q2>0.5){let mx=max(b.r,max(b.g,b.b));if(mx<1e-4){o.pos=OFF;return o;}o.pos=place(c,uv,rpx);o.uv=uv;o.col=vec4<f32>(b.rgb*min(1.0,rpx/2.0),1.0);o.ex=vec4<f32>(0.);return o;}
  o.pos=place(c,uv,rpx);o.uv=uv;let dens=clamp(0.6/sqrt(1.0+e.w*0.5),0.12,0.6);let lu=dot(b.rgb,vec3<f32>(0.3,0.6,0.1));o.col=vec4<f32>(b.rgb,v.cloudA*dens*min(1.0,rpx/3.0)/(1.0+lu*lu*4.0));o.ex=vec4<f32>(0.);return o;}
+@vertex fn vdust(@builtin(vertex_index) vi:u32,@location(0) a:vec4<f32>,@location(1) b:vec4<f32>,@location(2) e:vec4<f32>,@location(3) t:vec4<f32>)->O{var o:O;let uv=corner(vi);let c=v.vp*vec4<f32>(a.xyz,1.0);
+ let rpx=min(a.w*v.cloudK*v.vh*0.5/max(c.w,1e-4),v.cloudMax*1.4);
+ if(t.x!=0.0||c.w<=0.0||rpx<1.0||v.fon>0.5||t.w<0.02){o.pos=OFF;return o;}
+ o.pos=place(c,uv,rpx);o.uv=uv;o.col=vec4<f32>(0.,0.,0.,(1.0-exp(-t.w))*0.85*min(1.0,rpx/4.0));o.ex=vec4<f32>(0.);return o;}
+@fragment fn fdust(i:O)->@location(0) vec4<f32>{let r2=dot(i.uv,i.uv);if(r2>1.0){discard;}let a=i.col.a*exp(-r2*3.0);return vec4<f32>(0.,0.,0.,a);}
 @fragment fn fcloud(i:O)->@location(0) vec4<f32>{let r2=dot(i.uv,i.uv);if(r2>1.0){discard;}let a=i.col.a*exp(-r2*3.5);return vec4<f32>(i.col.rgb*a,a);}
-@vertex fn vpt(@builtin(vertex_index) vi:u32,@location(0) a:vec4<f32>,@location(1) b:vec4<f32>,@location(2) e:vec4<f32>,@location(3) t:vec4<f32>)->O{var o:O;let uv=corner(vi);let c=v.vp*vec4<f32>(a.xyz,1.0);
+@vertex fn vpt(@builtin(vertex_index) vi:u32,@builtin(instance_index) ii:u32,@location(0) a:vec4<f32>,@location(1) b:vec4<f32>,@location(2) e:vec4<f32>,@location(3) t:vec4<f32>)->O{var o:O;let uv=corner(vi);let c=v.vp*vec4<f32>(a.xyz,1.0);
  if(c.w<=0.0||t.x>4.5){o.pos=OFF;return o;}
  var rpx=v.px;var col=vec4<f32>(b.rgb,v.ptA);var star=0.0;
  if(v.fon>0.5){if(t.w<=v.q1){o.pos=OFF;return o;}o.pos=place(c,uv,v.px*2.6);o.uv=uv;o.col=vec4<f32>(1.0,0.84,0.48,1.0);o.ex=vec4<f32>(1.0,0.,0.,0.);return o;}
+ if(v.q2>0.5){let bd=u32(v.q2+0.5)-1u;let dd=pow(v.q3/max(c.w,1e-3),2.0);var Bf=0.0;var cc=vec3<f32>(1.0);
+  let ph=fract(sin(f32(ii)*12.9898)*43758.5)*6.2831;let per=0.4+fract(f32(ii)*0.618)*1.6;let fla=pow(max(0.0,sin(v.q1*6.2831/per+ph)),24.0);
+  var pal=array<vec3<f32>,5>(vec3<f32>(1.0,0.8,0.6),vec3<f32>(1.0,0.5,0.25),vec3<f32>(0.6,0.6,1.0),vec3<f32>(1.0,0.35,0.9),vec3<f32>(1.0,0.55,0.2));
+  if(t.x==1.0){o.pos=OFF;return o;}
+  if(t.x==4.0){let ac=clamp(log2(1.0+t.z*400.0)*0.3,0.0,1.0);var m=array<f32,5>(0.6,1.0,8.0,3.0,5.0);Bf=ac*m[bd]*dd*0.2;if(bd==3u&&ac<0.5){Bf=0.0;}cc=pal[bd];}
+  else if(t.x==3.0){var m=array<f32,5>(0.05,0.02,1.5,0.0,0.0);var f=array<f32,5>(2.0,0.0,6.0,60.0,80.0);Bf=(m[bd]+f[bd]*fla)*dd*0.05;cc=select(pal[bd],vec3<f32>(0.6,0.8,1.0),bd==0u);}
+  else if(t.x==2.0){var m=array<f32,5>(0.08,0.02,0.15,0.0,0.0);Bf=m[bd]*dd;cc=select(pal[bd],vec3<f32>(0.8,0.88,1.0),bd==0u);}
+  else if(b.w>0.0){Bf=min(2e4,(b.w/0.004)*dd*0.5);cc=b.rgb;}
+  else{let mx=max(b.r,max(b.g,b.b));if(mx<2e-3){o.pos=OFF;return o;}o.pos=place(c,uv,v.px*1.3);o.uv=uv;o.col=vec4<f32>(b.rgb*0.35,1.0);o.ex=vec4<f32>(0.);return o;}
+  if(Bf*max(cc.r,max(cc.g,cc.b))<1e-3){o.pos=OFF;return o;}
+  let sz=clamp(2.0+2.2*log2(1.0+Bf),2.0,16.0);o.pos=place(c,uv,v.px*sz);o.uv=uv;o.col=vec4<f32>(cc*min(Bf,2e4),1.0);o.ex=vec4<f32>(3.0,Bf,sz,0.);return o;}
+ if(t.x==4.0&&v.q2>0.5){let ac=clamp(log2(1.0+t.z*400.0)*0.3,0.0,1.0);if(ac<0.02){o.pos=OFF;return o;}let Bf=ac*3.0*pow(v.q3/max(c.w,1e-3),2.0)*0.2;let sz=clamp(2.0+2.0*log2(1.0+Bf),2.0,10.0);o.pos=place(c,uv,v.px*sz);o.uv=uv;o.col=vec4<f32>(vec3<f32>(1.0,0.75,0.5)*Bf,1.0);o.ex=vec4<f32>(3.0,Bf,sz,0.);return o;}
  if(t.x==4.0){rpx=v.px*clamp(3.0+log2(1.0+t.y)*1.6,3.0,22.0);o.pos=place(c,uv,rpx);o.uv=uv;o.col=vec4<f32>(1.0,0.62,0.25,clamp(0.35+log2(1.0+t.z*200.0)*0.25,0.35,1.0));o.ex=vec4<f32>(2.0,0.,0.,0.);return o;}
  if(t.x==1.0){if(v.dm<0.5){o.pos=OFF;return o;}col=vec4<f32>(0.55,0.42,1.0,0.28);}
  else if(t.x==2.0){rpx=v.px*2.2;col=vec4<f32>(0.78,0.88,1.0,1.0);star=1.0;}
- else if(t.x==3.0){rpx=v.px*2.0;col=vec4<f32>(0.45,1.0,0.95,1.0);star=1.0;}
+ else if(t.x==3.0){if(v.q2>0.5){let ph=fract(sin(f32(ii)*12.9898)*43758.5)*6.2831;let per=0.4+fract(f32(ii)*0.618)*1.6;let fl=pow(max(0.0,sin(v.q1*6.2831/per+ph)),24.0);
+  let Bf=(0.15+60.0*fl)*pow(v.q3/max(c.w,1e-3),2.0)*0.05+0.05;let sz=clamp(2.0+2.2*log2(1.0+Bf),2.0,14.0);o.pos=place(c,uv,v.px*sz);o.uv=uv;o.col=vec4<f32>(vec3<f32>(0.6,0.8,1.0)*Bf,1.0);o.ex=vec4<f32>(3.0,Bf,sz,0.);return o;}
+  rpx=v.px*2.0;col=vec4<f32>(0.45,1.0,0.95,1.0);star=1.0;}
+ else if(b.w>0.0&&v.q2>0.5){let Bf=min(2e4,(b.w/0.004)*pow(v.q3/max(c.w,1e-3),2.0)*0.5);let sz=clamp(2.0+2.2*log2(1.0+Bf),2.0,16.0);o.pos=place(c,uv,v.px*sz);o.uv=uv;o.col=vec4<f32>(b.rgb*Bf,1.0);o.ex=vec4<f32>(3.0,Bf,sz,0.);return o;}
  else if(b.w>0.0){rpx=v.px*clamp(2.0+sqrt(b.w)*14.0,2.0,6.0);col=select(vec4<f32>(1.0,0.93,0.75,1.0),vec4<f32>(b.rgb,1.0),v.q2>0.5);star=1.0;}
  o.pos=place(c,uv,rpx);o.uv=uv;o.col=col;o.ex=vec4<f32>(star,0.,0.,0.);return o;}
 @fragment fn fpt(i:O)->@location(0) vec4<f32>{let r2=dot(i.uv,i.uv);if(r2>1.0){discard;}
+ if(i.ex.x>2.5){let r=sqrt(r2);let q=r*i.ex.z;let core=exp(-q*q*0.7);let halo=0.05*exp(-q*0.8)*min(1.0,i.ex.y*0.3);var spk=0.0;
+  if(i.ex.y>4.0){let ax=abs(i.uv.x)*i.ex.z;let ay=abs(i.uv.y)*i.ex.z;spk=(exp(-ay*ay*1.5)*exp(-ax*0.45)+exp(-ax*ax*1.5)*exp(-ay*0.45))*0.18*min(1.0,i.ex.y/40.0);}
+  let fade=1.0-smoothstep(0.75,1.0,r);return vec4<f32>(i.col.rgb*(core+halo+spk)*fade,0.0);}
  var a=i.col.a;if(i.ex.x>1.5){let r=sqrt(r2);a=0.8*i.col.a*exp(-pow((r-0.36)*5.0,2.0))*(1.0-r);}else if(i.ex.x>0.5){a=0.9*exp(-r2*16.0)+0.05*exp(-r2*3.0);}else{a*=1.0-smoothstep(0.55,1.0,sqrt(r2));}
  return vec4<f32>(i.col.rgb*a,a);}
 @vertex fn vring(@builtin(vertex_index) vi:u32,@location(0) a:vec4<f32>,@location(1) b:vec4<f32>,@location(2) e:vec4<f32>,@location(3) t:vec4<f32>)->O{var o:O;let uv=corner(vi);let c=v.vp*vec4<f32>(a.xyz,1.0);
@@ -646,6 +677,14 @@ const OFF=vec4<f32>(2.,2.,2.,1.);
  if(i.ex.x>0.5){if(r>0.32){discard;}return vec4<f32>(0.0,0.0,0.0,1.0);}
  let a=i.col.a*(1.0-smoothstep(0.0,0.18,abs(r-0.78)));if(a<0.01){discard;}return vec4<f32>(i.col.rgb*a,a);}
 `;
+const PS=`
+@group(0) @binding(0) var src:texture_2d<f32>;@group(0) @binding(1) var smp:sampler;@group(0) @binding(2) var<uniform> pu:vec4<f32>;@group(0) @binding(3) var blm:texture_2d<f32>;
+struct VO{@builtin(position) p:vec4<f32>,@location(0) uv:vec2<f32>};
+@vertex fn vfs(@builtin(vertex_index) i:u32)->VO{var o:VO;let q=vec2<f32>(f32((i<<1u)&2u),f32(i&2u));o.p=vec4<f32>(q*2.0-1.0,0.,1.);o.uv=vec2<f32>(q.x,1.0-q.y);return o;}
+@fragment fn fdown(i:VO)->@location(0) vec4<f32>{let ts=1.0/vec2<f32>(textureDimensions(src));var c=vec3<f32>(0.);for(var y=-1;y<=1;y++){for(var x=-1;x<=1;x++){c+=textureSampleLevel(src,smp,i.uv+vec2<f32>(f32(x),f32(y))*ts*1.5,0.).rgb;}}c/=9.0;let l=max(c.r,max(c.g,c.b));return vec4<f32>(c*max(l-pu.w,0.)/max(l,1e-4),1.);}
+@fragment fn fblur(i:VO)->@location(0) vec4<f32>{let ts=pu.xy/vec2<f32>(textureDimensions(src));var w=array<f32,5>(0.227,0.194,0.121,0.054,0.016);var c=textureSampleLevel(src,smp,i.uv,0.).rgb*w[0];for(var k=1;k<5;k++){let o=ts*f32(k)*1.6;c+=(textureSampleLevel(src,smp,i.uv+o,0.).rgb+textureSampleLevel(src,smp,i.uv-o,0.).rgb)*w[k];}return vec4<f32>(c,1.);}
+@fragment fn fcomp(i:VO)->@location(0) vec4<f32>{var c=(textureSampleLevel(src,smp,i.uv,0.).rgb+textureSampleLevel(blm,smp,i.uv,0.).rgb*0.3)*pu.z;
+ c=clamp((c*(2.51*c+0.03))/(c*(2.43*c+0.59)+0.14),vec3<f32>(0.),vec3<f32>(1.));let n=fract(sin(dot(i.p.xy,vec2<f32>(12.9898,78.233)))*43758.5453)/255.0;return vec4<f32>(c+vec3<f32>(0.012,0.015,0.03)*(1.0-c)+n,1.);}`;
 class GenesisGPU{
  static async create(canvas,opts){const g=new GenesisGPU();await g.init(canvas,opts||{});return g;}
  async init(canvas,o){
@@ -664,8 +703,15 @@ class GenesisGPU{
    const over={color:{srcFactor:'one',dstFactor:'one-minus-src-alpha',operation:'add'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha',operation:'add'}};
    const rp=(vs,fs,bl,dw)=>d.createRenderPipeline({layout:'auto',vertex:{module:rm,entryPoint:vs,buffers:vb},fragment:{module:rm,entryPoint:fs,targets:[{format:this.fmt,blend:bl}]},primitive:{topology:'triangle-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:dw,depthCompare:'less'}});
    this.rp={cloud:rp('vcloud','fcloud',add,false),pt:rp('vpt','fpt',add,false),ring:rp('vring','fring',over,true)};
+   const mul={color:{srcFactor:'zero',dstFactor:'one-minus-src-alpha',operation:'add'},alpha:{srcFactor:'zero',dstFactor:'one',operation:'add'}};
+   const rpH=(vs,fs,bl,dw)=>d.createRenderPipeline({layout:'auto',vertex:{module:rm,entryPoint:vs,buffers:vb},fragment:{module:rm,entryPoint:fs,targets:[{format:'rgba16float',blend:bl}]},primitive:{topology:'triangle-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:dw,depthCompare:'less'}});
+   this.rpH={cloud:rpH('vcloud','fcloud',add,false),pt:rpH('vpt','fpt',add,false),ring:rpH('vring','fring',over,true),dust:rpH('vdust','fdust',mul,false)};
+   const pm=mk(PS);const pp=(fs,fmt)=>d.createRenderPipeline({layout:'auto',vertex:{module:pm,entryPoint:'vfs'},fragment:{module:pm,entryPoint:fs,targets:[{format:fmt}]},primitive:{topology:'triangle-list'}});
+   this.pp={down:pp('fdown','rgba16float'),blur:pp('fblur','rgba16float'),comp:pp('fcomp',this.fmt)};this.smp=d.createSampler({magFilter:'linear',minFilter:'linear',addressModeU:'clamp-to-edge',addressModeV:'clamp-to-edge'});
+   this.pub=[0,1,2].map(()=>d.createBuffer({size:16,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST}));
    this.vub=d.createBuffer({size:112,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
-   this.rbg={};for(const k in this.rp)this.rbg[k]=d.createBindGroup({layout:this.rp[k].getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:this.vub}}]});}
+   this.rbg={};for(const k in this.rp)this.rbg[k]=d.createBindGroup({layout:this.rp[k].getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:this.vub}}]});
+   this.rbgH={};for(const k in this.rpH)this.rbgH[k]=d.createBindGroup({layout:this.rpH[k].getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:this.vub}}]});}
   const ub=Math.ceil(PWORDS*4/16)*16;this.ub=d.createBuffer({size:ub,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
   this.uarr=new ArrayBuffer(ub);this.u32=new Uint32Array(this.uarr);this.f32=new Float32Array(this.uarr);
  }
@@ -721,10 +767,11 @@ class GenesisGPU{
    d.queue.submit([e.finish()]);}
  }
  prep(mode){this.setU('mode',mode||0);this.dev.queue.writeBuffer(this.ub,0,this.uarr);const e=this.dev.createCommandEncoder();this.pass(e,'prep',Math.ceil(this.N/64));this.dev.queue.submit([e.finish()]);}
- render(vp,o){const d=this.dev,W=this.canvas.width,H=this.canvas.height;const f=new Float32Array(28);f.set(vp,0);f[16]=W;f[17]=H;f[18]=o.px;f[19]=o.cloudA;f[20]=o.cloudK;f[21]=o.cloudMax;f[22]=o.ptA;f[23]=o.dm?1:0;f[24]=o.fon?1:0;f[25]=o.fth||0;f[26]=o.real?1:0;
+ render(vp,o){const d=this.dev,W=this.canvas.width,H=this.canvas.height;const f=new Float32Array(28);f.set(vp,0);f[16]=W;f[17]=H;f[18]=o.px;f[19]=o.cloudA;f[20]=o.cloudK;f[21]=o.cloudMax;f[22]=o.ptA;f[23]=o.dm?1:0;f[24]=o.fon?1:0;f[25]=o.fon?(o.fth||0):(performance.now()/1000)%1000;f[26]=o.real?(o.band||1):0;f[27]=o.camD||1;
   d.queue.writeBuffer(this.vub,0,f);const e=d.createCommandEncoder();
   const tex=o.view?null:this.ctx.getCurrentTexture();const tw=o.view?(o.w||W):tex.width,th=o.view?(o.h||H):tex.height;
   if(!this.depth||this.depth.width!==tw||this.depth.height!==th){if(this.depth)this.depth.destroy();this.depth=d.createTexture({size:[tw,th],format:'depth24plus',usage:GPUTextureUsage.RENDER_ATTACHMENT});}
+  if(o.real&&this.rpH){this.renderHDR(e,o,tex,tw,th);d.queue.submit([e.finish()]);return;}
   const rp=e.beginRenderPass({colorAttachments:[{view:o.view||tex.createView(),clearValue:(this.clear||{r:0.016,g:0.02,b:0.04,a:1}),loadOp:'clear',storeOp:'store'}],depthStencilAttachment:{view:this.depth.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'discard'}});
   rp.setVertexBuffer(0,this.b.rb);
   // prima i buchi neri (scrivono la profondità): il gas davanti li vela, quello dietro viene nascosto
@@ -732,6 +779,21 @@ class GenesisGPU{
   if(o.cloudA>0){rp.setPipeline(this.rp.cloud);rp.setBindGroup(0,this.rbg.cloud);rp.draw(6,this.N);}
   rp.setPipeline(this.rp.pt);rp.setBindGroup(0,this.rbg.pt);rp.draw(6,this.N);
   rp.end();d.queue.submit([e.finish()]);}
+ ensurePost(tw,th){const d=this.dev;if(this.post&&this.post.w===tw&&this.post.h===th)return this.post;if(this.post){this.post.hdr.destroy();this.post.a.destroy();this.post.b.destroy();}
+  const U=GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING;const qw=Math.max(1,tw>>2),qh=Math.max(1,th>>2);
+  const P={w:tw,h:th,hdr:d.createTexture({size:[tw,th],format:'rgba16float',usage:U}),a:d.createTexture({size:[qw,qh],format:'rgba16float',usage:U}),b:d.createTexture({size:[qw,qh],format:'rgba16float',usage:U})};
+  const bg=(pl,srcT,ub,blT)=>{const en=[{binding:0,resource:srcT.createView()},{binding:1,resource:this.smp}];const lay=pl.getBindGroupLayout(0);if(ub)en.push({binding:2,resource:{buffer:ub}});if(blT)en.push({binding:3,resource:blT.createView()});return d.createBindGroup({layout:lay,entries:en});};
+  P.gDown=bg(this.pp.down,P.hdr,this.pub[0]);P.gH=bg(this.pp.blur,P.a,this.pub[1]);P.gV=bg(this.pp.blur,P.b,this.pub[2]);P.gComp=bg(this.pp.comp,P.hdr,this.pub[0],P.a);
+  return this.post=P;}
+ renderHDR(e,o,tex,tw,th){const d=this.dev,P=this.ensurePost(tw,th);const ex=o.exposure||1;
+  d.queue.writeBuffer(this.pub[0],0,new Float32Array([0,0,ex,1.2]));d.queue.writeBuffer(this.pub[1],0,new Float32Array([1,0,0,0]));d.queue.writeBuffer(this.pub[2],0,new Float32Array([0,1,0,0]));
+  const rp=e.beginRenderPass({colorAttachments:[{view:P.hdr.createView(),clearValue:{r:0,g:0,b:0,a:1},loadOp:'clear',storeOp:'store'}],depthStencilAttachment:{view:this.depth.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'discard'}});
+  rp.setVertexBuffer(0,this.b.rb);rp.setPipeline(this.rpH.ring);rp.setBindGroup(0,this.rbgH.ring);rp.draw(6,this.N);
+  rp.setPipeline(this.rpH.pt);rp.setBindGroup(0,this.rbgH.pt);rp.draw(6,this.N);
+  if(o.cloudA>0){rp.setPipeline(this.rpH.dust);rp.setBindGroup(0,this.rbgH.dust);rp.draw(6,this.N);rp.setPipeline(this.rpH.cloud);rp.setBindGroup(0,this.rbgH.cloud);rp.draw(6,this.N);}
+  rp.end();
+  const pass=(view,pl,g)=>{const r=e.beginRenderPass({colorAttachments:[{view,clearValue:{r:0,g:0,b:0,a:1},loadOp:'clear',storeOp:'store'}]});r.setPipeline(pl);r.setBindGroup(0,g);r.draw(3);r.end();};
+  pass(P.a.createView(),this.pp.down,P.gDown);pass(P.b.createView(),this.pp.blur,P.gH);pass(P.a.createView(),this.pp.blur,P.gV);pass(o.view||tex.createView(),this.pp.comp,P.gComp);}
  async readStats(){if(this.statBusy)return null;this.statBusy=true;const d=this.dev,e=d.createCommandEncoder();e.copyBufferToBuffer(this.b.st,0,this.b.stRead,0,NST*4);d.queue.submit([e.finish()]);
   try{await this.b.stRead.mapAsync(GPUMapMode.READ);}catch(err){this.statBusy=false;return null;}
   const a=new Uint32Array(this.b.stRead.getMappedRange().slice(0));this.b.stRead.unmap();this.statBusy=false;
@@ -856,11 +918,23 @@ vec4 hole(vec2 p){vec3 N=normalize(uBN);vec3 e1=normalize(abs(N.y)<.9?cross(N,ve
  if(uAcc>.7&&!cap){float jy=q.y/max(pl,.08);float jx=abs(q.x)/(.05+abs(jy)*.05);col+=tr*vec3(.55,.7,1.)*exp(-jx*jx)*smoothstep(1.5,2.5,abs(q.y))*exp(-abs(jy)*.2)*pl*(.5+.7*fbm(vec3(q.x*4.,jy*1.5-sign(q.y)*uT*2.,1.)))*(uAcc-.7)*2.5;}
  vec3 c=col+tr*sk*skyA;float mx=max(c.r,max(c.g,c.b));c*=(1.-exp(-mx*1.5))/max(mx,1e-4);
  float a=clamp((1.-tr)+tr*skyA,0.,1.);a=max(a,clamp(mx,0.,1.));return vec4(c,a);}
+// ---------------- pulsar: stella di neutroni con asse magnetico inclinato che ruota ----------------
+vec4 pulsar(vec2 p){mat3 iv=transpose(uCam);float ph=uT*6.2831/max(uAct,.05);float al=.55;
+ vec3 mw=vec3(sin(al)*cos(ph),cos(al),sin(al)*sin(ph));vec3 m=iv*mw;vec3 c=vec3(0.);float a=0.;float r=length(p);
+ for(int k=0;k<2;k++){vec3 A=m*(k==0?1.:-1.);vec2 a2=A.xy;float la=length(a2);vec2 an=la>1e-3?a2/la:vec2(0.,1.);
+  float u=dot(p,an);float w=abs(an.x*p.y-an.y*p.x);float cone=.12+max(u,0.)*.16/max(la,.15)*la;
+  float beam=step(0.,u)*exp(-pow(w/cone,2.))*exp(-u*.09/max(la,.2))*smoothstep(.8,1.6,u)*la;
+  float fl=pow(max(A.z,0.),12.);c+=vec3(.55,.75,1.)*beam*(.35+2.5*fl);
+  c+=vec3(.7,.85,1.)*fl*exp(-r*.35)*1.6;}
+ c+=vec3(.5,.7,1.)*exp(-max(r-1.,0.)*1.1)*.25;
+ if(r<1.){float z=sqrt(1.-r*r);vec3 n=vec3(p,z);float pole=max(pow(max(dot(n,m),0.),40.),pow(max(dot(n,-m),0.),40.));
+  c=mix(vec3(.75,.85,1.),vec3(1.),pole)*(.55+.45*z)*1.4+vec3(.6,.8,1.)*pole*2.;a=1.;}
+ float mx=max(c.r,max(c.g,c.b));c*=(1.-exp(-mx*1.4))/max(mx,1e-4);a=max(a,clamp(mx,0.,1.));return vec4(c,a);}
 void main(){vec2 p=vp*uExt;int K=int(uKind+.5);
  if(K==0){float pr=1.+uPulse;vec2 q=p/pr;float r=length(q);float px=uPx/pr;vec3 ci=vec3(0.),co=vec3(0.);float cov=clamp((1.-r)/px*.5+.5,0.,1.);
   if(r<1.+px)ci=starIn(q/max(r,1.)*min(r,1.));if(r>1.-px)co=starOut(q/max(r,1e-4)*max(r,1.))*smoothstep(uExt/pr,uExt/pr*.75,r);
   vec3 m=mix(co,ci,cov);float mx=max(m.r,max(m.g,m.b));vec3 c=m*((1.-exp(-mx*1.4))/max(mx,1e-4));float a=mix(clamp(max(c.r,max(c.g,c.b)),0.,1.),1.,cov);o=vec4(c,a);}
- else if(K==1)o=planet(p);else o=hole(p);}`;
+ else if(K==1)o=planet(p);else if(K==3)o=pulsar(p);else o=hole(p);}`;
 function pgInit(){if(PG.gl!==null)return PG.gl;const c=document.createElement('canvas');c.width=c.height=8;
  const gl=c.getContext('webgl2',{premultipliedAlpha:true,alpha:true,antialias:false});if(!gl){PG.gl=false;return false;}
  const sh=(t,s)=>{const o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);if(!gl.getShaderParameter(o,gl.COMPILE_STATUS)){console.error('probe shader',gl.getShaderInfoLog(o));return null;}return o;};
@@ -1068,7 +1142,8 @@ const tog=(id,v)=>$(id).setAttribute('aria-pressed',String(v));
 $('play').onclick=()=>{run=!run;$('play').textContent=run?'Pausa':'Avvia';tog('play',!run);if(cpu)cpu.postMessage({cmd:'run',on:run});};
 $('turbo').onclick=()=>{turbo=!turbo;tog('turbo',turbo);$('tb').hidden=!turbo;};
 $('spin').onclick=()=>{spin=!spin;tog('spin',spin);};
-function setMode(m){mode=m;tog('mR',m===2);tog('mT',m===0);tog('mZ',m===1);legend();}
+function setMode(m){mode=m;tog('mR',m===2);tog('mI',m===3);tog('mX',m===4);tog('mG',m===5);tog('mD',m===6);tog('mT',m===0);tog('mZ',m===1);$('cloudlab').hidden=m>=2;legend();}
+$('mI').onclick=()=>setMode(3);$('mX').onclick=()=>setMode(4);$('mG').onclick=()=>setMode(5);$('mD').onclick=()=>setMode(6);
 $('mR').onclick=()=>setMode(2);$('mT').onclick=()=>setMode(0);$('mZ').onclick=()=>setMode(1);
 $('spd').oninput=e=>{speed=+e.target.value;if(cpu)cpu.postMessage({cmd:'cap',v:Math.ceil(speed/2)});};
 $('cloud').oninput=e=>{cloud=+e.target.value/100;};
@@ -1076,7 +1151,12 @@ $('center').onclick=()=>{if(sys.active)exitSystem();setFollow(-1);if(last){cam.t
 $('enter').onclick=()=>enterSystem(true);
 function legend(){const T=['#3c1459','#961f33','#dc5029','#ff963c','#ffd796','#fff8eb','#cddeff','#96b4ff'],Z=['#6e8cd6','#a0b0e0','#d6bf8c','#f58c45','#eb5029'];const css=a=>'linear-gradient(90deg,'+a.join(',')+')';
  const sw=(c,l)=>`<span><i class="dot" style="background:${c}"></i>${l}</span>`;
- $('legend').innerHTML=mode===2?sw('#6b381f','Gas freddo e polveri')+sw('#4d6bd9','Gas neutro')+sw('#f2336b','Idrogeno ionizzato (Hα)')+sw('#33d9c7','Ossigeno ionizzato')+sw('#9e94ff','Gas caldissimo')+`<span>Stelle <i class="ramp" style="background:linear-gradient(90deg,#ff6b29,#ffe0b3,#fff8ee,#94b3ff)"></i> rosse → blu</span>`+sw('#408cff','Pianeta con acqua')+sw('#59d973','Vita')+`<span><i class="dot" style="background:#000;box-shadow:0 0 0 2px #ff9e40"></i>Buco nero</span>`:((mode===0?`<span>Freddo<i class="ramp" style="background:${css(T)}"></i>Caldissimo</span>`:`<span>Solo H e He<i class="ramp" style="background:${css(Z)}"></i>Ricco di metalli</span>`)+`<span><i class="dot" style="background:#fff3c4;box-shadow:0 0 6px #ffd27a"></i>Stella</span><span><i class="dot" style="background:#c7e0ff"></i>Nana bianca</span><span><i class="dot" style="background:#73fff2"></i>Stella di neutroni</span><span><i class="dot" style="background:#000;box-shadow:0 0 0 2px #ff9e40"></i>Buco nero</span>${showDM?'<span><i class="dot" style="background:#8c6bff"></i>Materia oscura</span>':''}`);}
+ const BL={3:['Infrarosso: vede il calore. Le polveri fredde, scure nel visibile, qui brillano; le stelle fredde e le protostelle risaltano. Le nubi non assorbono.',[['#b32e0f','Polveri fredde'],['#ffbf73','Polveri tiepide'],['#ff8c4d','Stelle fredde']]],
+  4:['Raggi X: solo il gas a milioni di gradi (resti di supernova, aloni delle galassie) e la materia che cade nei buchi neri. Il colore più rosa indica più ferro.',[['#738cff','Gas caldissimo'],['#f28cff','Gas ricco di ferro'],['#9999ff','Buco nero che accresce, stella di neutroni']]],
+  5:['Gamma: i fenomeni più violenti. Esplosioni di supernova e kilonove, impulsi delle pulsar, getti dei buchi neri più attivi.',[['#ff59e6','Esplosioni e pulsar']]],
+  6:['Radio: idrogeno neutro (riga a 21 cm), invisibile all\'occhio, che mostra dove c\'è gas freddo; più pulsar e getti dei buchi neri.',[['#ff8c33','Idrogeno neutro'],['#e6669a','Elettroni veloci (sincrotrone)']]]};
+ if(BL[mode]){$('legend').innerHTML=BL[mode][1].map(([c,l])=>sw(c,l)).join('')+`<span style="flex-basis:100%;opacity:.8">${BL[mode][0]}</span>`;return;}
+ $('legend').innerHTML=mode===2?sw('#000;box-shadow:0 0 0 1px #6b381f','Polveri (assorbono la luce)')+sw('#f2336b','Idrogeno ionizzato (Hα)')+sw('#33d9c7','Ossigeno ionizzato')+sw('#9e94ff','Gas caldissimo')+`<span>Stelle <i class="ramp" style="background:linear-gradient(90deg,#ff6b29,#ffe0b3,#fff8ee,#94b3ff)"></i> rosse → blu</span>`+sw('#408cff','Pianeta con acqua')+sw('#59d973','Vita')+`<span><i class="dot" style="background:#000;box-shadow:0 0 0 2px #ff9e40"></i>Buco nero</span>`:((mode===0?`<span>Freddo<i class="ramp" style="background:${css(T)}"></i>Caldissimo</span>`:`<span>Solo H e He<i class="ramp" style="background:${css(Z)}"></i>Ricco di metalli</span>`)+`<span><i class="dot" style="background:#fff3c4;box-shadow:0 0 6px #ffd27a"></i>Stella</span><span><i class="dot" style="background:#c7e0ff"></i>Nana bianca</span><span><i class="dot" style="background:#73fff2"></i>Stella di neutroni</span><span><i class="dot" style="background:#000;box-shadow:0 0 0 2px #ff9e40"></i>Buco nero</span>${showDM?'<span><i class="dot" style="background:#8c6bff"></i>Materia oscura</span>':''}`);}
 legend();
 // ================= cronaca e statistiche =================
 const FIRST=[['fus','Prima stella: il gas collassa, si scalda e fonde idrogeno in elio'],['c','Nasce il carbonio: l\'elio brucia nel nucleo di una stella'],['o','Nasce l\'ossigeno'],['h2o','Prima acqua: in una nube fredda H e O formano H₂O'],['org','Prime molecole organiche (C, H, N, O)'],['mg','Nascono i metalli (Mg, Si)'],['fe','Nasce il ferro: la stella è alla fine'],['sn','Prima supernova: ossigeno, silicio, ferro e i primi elementi pesanti del processo r vengono dispersi nello spazio'],['planet','Primo sistema planetario: polveri fredde attorno a una stella'],['hz','Primo pianeta nella zona abitabile: acqua liquida in superficie'],['life','Prima forma di vita: chimica organica in acqua liquida diventa autoreplicante'],['spread','La vita si diffonde su un pianeta vicino']];
@@ -1179,13 +1259,21 @@ function systemInfo(arr,si){const N=arr.length/STRIDE,k0=si*STRIDE;let L=0,pl=0,
  for(let j=0;j<N;j++){const k=j*STRIDE;if(arr[k+16]!==0)continue;const d2=(arr[k]-arr[k0])**2+(arr[k+1]-arr[k0+1])**2+(arr[k+2]-arr[k0+2])**2;if(arr[k+7]>0&&d2<9)L+=arr[k+7];if(arr[k+8]>=1&&arr[k+12]>0&&d2<400){pl++;if(arr[k+8]>=2)hz++;if(arr[k+10]>0)life++;}}
  const Lrel=Math.max(0.01,L/LREF);const sp=SPEC.find(x=>Lrel>=x[1]);return{cls:sp[0],T:sp[3],L:Lrel,pl:Math.min(pl,9),hz,life};}
 let filterZ=0;
+let expo=1,expoT=0;
+function autoExposure(a){const B=camBasis(),e=[cam.t[0]+B.z[0]*cam.D,cam.t[1]+B.z[1]*cam.D,cam.t[2]+B.z[2]*cam.D];const v=[];const N=a.length/STRIDE;
+ for(let i=0;i<N;i++){const k=i*STRIDE,ty=a[k+16];if(ty===1||ty>4.5)continue;const m=Math.max(a[k+4],a[k+5],a[k+6]);
+  const dx=a[k]-e[0],dy=a[k+1]-e[1],dz=a[k+2]-e[2];const dd=dx*B.z[0]+dy*B.z[1]+dz*B.z[2];const w=-dd;if(w<=0.01)continue;
+  if(ty===0&&a[k+7]>0){const b=(a[k+7]/0.004)*(cam.D/w)**2*0.5*m;if(b>1e-6)v.push(b);}else if(ty===0&&m>1e-4)v.push(m*0.6);}
+ if(v.length<3)return;v.sort((x,y)=>x-y);const ref=v[Math.floor(v.length*0.97)];const target=Math.min(1e4,Math.max(0.02,0.9/Math.max(ref,1e-9)));
+ expo=Math.exp(Math.log(expo)+(Math.log(target)-Math.log(expo))*0.35);}
+function visibleP(a,k){const ty=a[k+16];if(ty===1)return false;if(ty===4)return a[k+18]>1e-4||mode===2;if(ty===2||ty===3)return mode!==6||ty===3;const m=Math.max(a[k+4],a[k+5],a[k+6]);if(a[k+7]>0)return m>1e-3;return m>(a[k+8]>=1?1e-3:0.03);}
 async function selectAt(e){const r=cv.getBoundingClientRect(),sx=(e.clientX-r.left)*cv.width/r.width,sy=(e.clientY-r.top)*cv.height/r.height;const {vp}=viewProj();
  if(filterZ)pickCache=null;const arr=await pickData();if(!arr)return;const N=arr.length/STRIDE;
- let best=-1,bs=1e9;const R2=(filterZ?44:36)**2*dpr()*dpr();
- for(let i=0;i<N;i++){const k=i*STRIDE,q=project(vp,arr[k],arr[k+1],arr[k+2]);if(!q)continue;const d=(q[0]-sx)**2+(q[1]-sy)**2;if(d>R2)continue;const ty=arr[k+16];if(ty>4.5)continue;
+ let best=-1,bs=1e9,anyI=-1,anyD=1e18;const R2=(filterZ?44:36)**2*dpr()*dpr();
+ for(let i=0;i<N;i++){const k=i*STRIDE,q=project(vp,arr[k],arr[k+1],arr[k+2]);if(!q)continue;const d=(q[0]-sx)**2+(q[1]-sy)**2;if(d>R2)continue;const ty=arr[k+16];if(ty>4.5)continue;if(mode>=2&&g&&!filterZ&&!visibleP(arr,k)){if(d<anyD){anyD=d;anyI=i;}continue;}
   if(filterZ){if(!(arr[k+19]>filterTh))continue;if(d<bs){bs=d;best=i;}continue;}
   const pr=ty===4?3:arr[k+7]>0?2.6:arr[k+8]>=1?2.3:(ty===2||ty===3)?2:ty===1?-3:-2;const score=d/R2-pr;if(score<bs){bs=score;best=i;}}
- if(best<0)return;
+ if(best<0){if(anyI>=0&&cam.D>GAL_D*0.5){const k=anyI*STRIDE;const G=analyzeGalaxy(arr,[arr[k],arr[k+1],arr[k+2]]);if(G.center>=0&&G.stars>0)selectGalaxy(G);}return;}
  if(filterZ){clearFilter();selectObject(arr,best);return;}
  const k=best*STRIDE,ty=arr[k+16],plain=(ty===0&&arr[k+7]<=0&&arr[k+8]<1)||ty===1;
  if((cam.D>GAL_D&&!(sel&&sel.kind==='galaxy'))||plain){const G=analyzeGalaxy(arr,[arr[k],arr[k+1],arr[k+2]]);if(G.center<0)return;selectGalaxy(G);return;}
@@ -1300,7 +1388,7 @@ function drawProbe(now){const c=$('probec'),x=c.getContext('2d'),W=c.width,H=c.h
   if(acc>0.7){for(const sgn of[-1,1]){const jg=x.createLinearGradient(cx,cy,cx,cy+sgn*R*5);jg.addColorStop(0,'rgba(160,200,255,.5)');jg.addColorStop(1,'rgba(160,200,255,0)');x.fillStyle=jg;x.beginPath();x.moveTo(cx-R*0.12,cy);x.lineTo(cx+R*0.12,cy);x.lineTo(cx+R*0.35,cy+sgn*R*5);x.lineTo(cx-R*0.35,cy+sgn*R*5);x.closePath();x.fill();}}}
  else if(k==='wd'){const R=R0*0.22;const neb=x.createRadialGradient(cx,cy,R*2,cx,cy,R*7);neb.addColorStop(0,'rgba(90,220,200,0)');neb.addColorStop(0.6,'rgba(90,220,200,.18)');neb.addColorStop(0.85,'rgba(255,120,170,.14)');neb.addColorStop(1,'rgba(255,120,170,0)');x.fillStyle=neb;x.beginPath();x.arc(cx,cy,R*7,0,6.283);x.fill();
   const gw=x.createRadialGradient(cx,cy,0,cx,cy,R*2.2);gw.addColorStop(0,'rgba(235,245,255,1)');gw.addColorStop(0.45,'rgba(200,220,255,.9)');gw.addColorStop(1,'rgba(150,180,255,0)');x.fillStyle=gw;x.beginPath();x.arc(cx,cy,R*2.2,0,6.283);x.fill();}
- else if(k==='ns'){const R=R0*0.1,a=t*6;for(const s2 of[0,Math.PI]){const g2=x.createLinearGradient(cx,cy,cx+Math.cos(a+s2)*R*30,cy+Math.sin(a+s2)*R*30);g2.addColorStop(0,'rgba(140,255,240,.55)');g2.addColorStop(1,'rgba(140,255,240,0)');x.fillStyle=g2;x.beginPath();x.moveTo(cx,cy);x.lineTo(cx+Math.cos(a+s2-0.08)*R*30,cy+Math.sin(a+s2-0.08)*R*30);x.lineTo(cx+Math.cos(a+s2+0.08)*R*30,cy+Math.sin(a+s2+0.08)*R*30);x.closePath();x.fill();}
+ else if(k==='ns'){if(pgInit()){const R=R0*0.22,ext=14;const img=pgRender(2*R*ext,{uKind:3,uT:t,uExt:ext,uAct:0.6+1.4*pgHash(cam.follow),uCam:camM});if(img){x.drawImage(img,cx-R*ext,cy-R*ext,2*R*ext,2*R*ext);x.globalAlpha=1;return;}}const R=R0*0.1,a=t*6;for(const s2 of[0,Math.PI]){const g2=x.createLinearGradient(cx,cy,cx+Math.cos(a+s2)*R*30,cy+Math.sin(a+s2)*R*30);g2.addColorStop(0,'rgba(140,255,240,.55)');g2.addColorStop(1,'rgba(140,255,240,0)');x.fillStyle=g2;x.beginPath();x.moveTo(cx,cy);x.lineTo(cx+Math.cos(a+s2-0.08)*R*30,cy+Math.sin(a+s2-0.08)*R*30);x.lineTo(cx+Math.cos(a+s2+0.08)*R*30,cy+Math.sin(a+s2+0.08)*R*30);x.closePath();x.fill();}
   const gw=x.createRadialGradient(cx,cy,0,cx,cy,R*3);gw.addColorStop(0,'rgba(230,255,255,1)');gw.addColorStop(0.4,'rgba(120,255,240,.8)');gw.addColorStop(1,'rgba(120,255,240,0)');x.fillStyle=gw;x.beginPath();x.arc(cx,cy,R*3,0,6.283);x.fill();}
  else if(k==='gas'){const hot=S.u>0.004;for(let q=0;q<5;q++){const a=q*1.26+t*0.05,rr=R0*(0.5+0.25*Math.sin(t*0.3+q));const gx=cx+Math.cos(a)*R0*0.35,gy=cy+Math.sin(a)*R0*0.3;const gr=x.createRadialGradient(gx,gy,0,gx,gy,rr);gr.addColorStop(0,hot?'rgba(255,150,90,.25)':'rgba(110,140,230,.22)');gr.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=gr;x.beginPath();x.arc(gx,gy,rr,0,6.283);x.fill();}}
  x.globalAlpha=1;}
@@ -1344,8 +1432,9 @@ async function gpuFrame(now){if(g.lost)return;
  if(cam.fly){cam.D=Math.exp(Math.log(cam.D)+(Math.log(cam.fly.D)-Math.log(cam.D))*0.08);if(Math.abs(Math.log(cam.D/cam.fly.D))<0.02){cam.D=cam.fly.D;cam.fly=null;}}
  const galaxyVisible=(!sys.active||sys.alpha<1)&&!(micro.active&&(performance.now()-micro.t0)>500);
  const doRender=galaxyVisible&&(!turbo||now-lastRender>400);
+ if(mode>=2&&now-expoT>600){expoT=now;pickData().then(a=>{if(a)autoExposure(a);});}
  if(doRender){lastRender=now;g.prep(mode);const {vp,f}=viewProj();const d=dpr(),dens=Math.sqrt(16384/g.N);
-  g.render(new Float32Array(vp),{fon:!!filterZ,fth:filterTh,real:mode===2,dm:showDM,px:(cv.clientWidth<600?1.7:1.25)*d,cloudA:cloud*0.3*Math.cbrt(16384/g.N),cloudK:2.4*f,cloudMax:60*d,ptA:Math.max(0.3,Math.min(0.95,0.95*dens))});}
+  g.render(new Float32Array(vp),{fon:!!filterZ,fth:filterTh,real:mode>=2,band:mode-1,camD:cam.D,exposure:expo,dm:showDM,px:(cv.clientWidth<600?1.7:1.25)*d,cloudA:mode>=2?1:cloud*0.3*Math.cbrt(16384/g.N),cloudK:2.4*f,cloudMax:60*d,ptA:Math.max(0.3,Math.min(0.95,0.95*dens))});}
  else if(sys.active&&now-lastRender>1000){lastRender=now;g.prep(mode);}
  await g.done();const dt=performance.now()-t0;
  if(n>0){msStep=msStep?msStep*0.85+(dt/n)*0.15:dt/n;const tgt=turbo?140:24;stepsPF=Math.max(1,Math.min(400,Math.round(stepsPF*Math.min(1.5,Math.max(0.6,tgt/Math.max(1,dt))))));}
@@ -1557,7 +1646,7 @@ function gasInGalaxy(G){pickData().then(arr=>{if(!arr)return;const N=arr.length/
  if(best>=0)enterMicro('gas',best);else toast('Nessuna nube di gas qui');});}
 // ================= ripiego su CPU =================
 let cpuSnap=null,ctx2=null;
-function startCPU(reason){$('boot').innerHTML=`<div><b>WebGPU non disponibile</b>${reason}. Uso la versione su processore con 3.000 particelle: per decine di migliaia di particelle apri la pagina con Chrome aggiornato (Android, Windows, Mac) o Safari su iOS 26.</div>`;
+function startCPU(reason){document.querySelectorAll('.gpuonly').forEach(b=>b.hidden=true);$('boot').innerHTML=`<div><b>WebGPU non disponibile</b>${reason}. Uso la versione su processore con 3.000 particelle: per decine di migliaia di particelle apri la pagina con Chrome aggiornato (Android, Windows, Mac) o Safari su iOS 26.</div>`;
  setTimeout(()=>{$('boot').hidden=true;},6000);
  const nc=$('c2');nc.hidden=false;ctx2=nc.getContext('2d');
  const src=$('cpucode').textContent;cpu=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));cpu.onmessage=e=>{cpuSnap=e.data;if(cpuSnap.comp)onObjComp(cpuSnap.comp,true);};cpu.postMessage({cmd:'init',n:3000});

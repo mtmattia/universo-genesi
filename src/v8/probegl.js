@@ -105,11 +105,23 @@ vec4 hole(vec2 p){vec3 N=normalize(uBN);vec3 e1=normalize(abs(N.y)<.9?cross(N,ve
  if(uAcc>.7&&!cap){float jy=q.y/max(pl,.08);float jx=abs(q.x)/(.05+abs(jy)*.05);col+=tr*vec3(.55,.7,1.)*exp(-jx*jx)*smoothstep(1.5,2.5,abs(q.y))*exp(-abs(jy)*.2)*pl*(.5+.7*fbm(vec3(q.x*4.,jy*1.5-sign(q.y)*uT*2.,1.)))*(uAcc-.7)*2.5;}
  vec3 c=col+tr*sk*skyA;float mx=max(c.r,max(c.g,c.b));c*=(1.-exp(-mx*1.5))/max(mx,1e-4);
  float a=clamp((1.-tr)+tr*skyA,0.,1.);a=max(a,clamp(mx,0.,1.));return vec4(c,a);}
+// ---------------- pulsar: stella di neutroni con asse magnetico inclinato che ruota ----------------
+vec4 pulsar(vec2 p){mat3 iv=transpose(uCam);float ph=uT*6.2831/max(uAct,.05);float al=.55;
+ vec3 mw=vec3(sin(al)*cos(ph),cos(al),sin(al)*sin(ph));vec3 m=iv*mw;vec3 c=vec3(0.);float a=0.;float r=length(p);
+ for(int k=0;k<2;k++){vec3 A=m*(k==0?1.:-1.);vec2 a2=A.xy;float la=length(a2);vec2 an=la>1e-3?a2/la:vec2(0.,1.);
+  float u=dot(p,an);float w=abs(an.x*p.y-an.y*p.x);float cone=.12+max(u,0.)*.16/max(la,.15)*la;
+  float beam=step(0.,u)*exp(-pow(w/cone,2.))*exp(-u*.09/max(la,.2))*smoothstep(.8,1.6,u)*la;
+  float fl=pow(max(A.z,0.),12.);c+=vec3(.55,.75,1.)*beam*(.35+2.5*fl);
+  c+=vec3(.7,.85,1.)*fl*exp(-r*.35)*1.6;}
+ c+=vec3(.5,.7,1.)*exp(-max(r-1.,0.)*1.1)*.25;
+ if(r<1.){float z=sqrt(1.-r*r);vec3 n=vec3(p,z);float pole=max(pow(max(dot(n,m),0.),40.),pow(max(dot(n,-m),0.),40.));
+  c=mix(vec3(.75,.85,1.),vec3(1.),pole)*(.55+.45*z)*1.4+vec3(.6,.8,1.)*pole*2.;a=1.;}
+ float mx=max(c.r,max(c.g,c.b));c*=(1.-exp(-mx*1.4))/max(mx,1e-4);a=max(a,clamp(mx,0.,1.));return vec4(c,a);}
 void main(){vec2 p=vp*uExt;int K=int(uKind+.5);
  if(K==0){float pr=1.+uPulse;vec2 q=p/pr;float r=length(q);float px=uPx/pr;vec3 ci=vec3(0.),co=vec3(0.);float cov=clamp((1.-r)/px*.5+.5,0.,1.);
   if(r<1.+px)ci=starIn(q/max(r,1.)*min(r,1.));if(r>1.-px)co=starOut(q/max(r,1e-4)*max(r,1.))*smoothstep(uExt/pr,uExt/pr*.75,r);
   vec3 m=mix(co,ci,cov);float mx=max(m.r,max(m.g,m.b));vec3 c=m*((1.-exp(-mx*1.4))/max(mx,1e-4));float a=mix(clamp(max(c.r,max(c.g,c.b)),0.,1.),1.,cov);o=vec4(c,a);}
- else if(K==1)o=planet(p);else o=hole(p);}`;
+ else if(K==1)o=planet(p);else if(K==3)o=pulsar(p);else o=hole(p);}`;
 function pgInit(){if(PG.gl!==null)return PG.gl;const c=document.createElement('canvas');c.width=c.height=8;
  const gl=c.getContext('webgl2',{premultipliedAlpha:true,alpha:true,antialias:false});if(!gl){PG.gl=false;return false;}
  const sh=(t,s)=>{const o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);if(!gl.getShaderParameter(o,gl.COMPILE_STATUS)){console.error('probe shader',gl.getShaderInfoLog(o));return null;}return o;};

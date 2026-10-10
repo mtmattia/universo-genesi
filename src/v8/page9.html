@@ -152,10 +152,10 @@ details ul{padding-left:18px;margin:8px 0 0}details li{margin-bottom:4px}
    <button id="center">Centra</button>
    <button id="nextg">Prossima galassia ›</button>
    <div class="seg" role="group" aria-label="Colore delle particelle">
-    <button id="mR" aria-pressed="true">Realistico</button><button id="mT" aria-pressed="false">Temperatura</button><button id="mZ" aria-pressed="false">Composizione</button>
+    <button id="mR" aria-pressed="true">Visibile</button><button id="mI" aria-pressed="false" class="gpuonly">Infrarosso</button><button id="mX" aria-pressed="false" class="gpuonly">Raggi X</button><button id="mG" aria-pressed="false" class="gpuonly">Gamma</button><button id="mD" aria-pressed="false" class="gpuonly">Radio</button><button id="mT" aria-pressed="false">Temperatura</button><button id="mZ" aria-pressed="false">Composizione</button>
    </div>
    <label class="lab" for="npart">Particelle <select id="npart"></select></label>
-   <label class="lab" for="cloud">Nubi <input id="cloud" type="range" min="0" max="100" step="1" value="55"></label>
+   <label class="lab" id="cloudlab" for="cloud" hidden>Nubi <input id="cloud" type="range" min="0" max="100" step="1" value="55"></label>
    <label class="lab" for="spd">Velocità <input id="spd" type="range" min="1" max="10" step="1" value="6"></label>
    <button id="spin" aria-pressed="true">Rotazione</button>
   </div>
@@ -276,7 +276,8 @@ const tog=(id,v)=>$(id).setAttribute('aria-pressed',String(v));
 $('play').onclick=()=>{run=!run;$('play').textContent=run?'Pausa':'Avvia';tog('play',!run);if(cpu)cpu.postMessage({cmd:'run',on:run});};
 $('turbo').onclick=()=>{turbo=!turbo;tog('turbo',turbo);$('tb').hidden=!turbo;};
 $('spin').onclick=()=>{spin=!spin;tog('spin',spin);};
-function setMode(m){mode=m;tog('mR',m===2);tog('mT',m===0);tog('mZ',m===1);legend();}
+function setMode(m){mode=m;tog('mR',m===2);tog('mI',m===3);tog('mX',m===4);tog('mG',m===5);tog('mD',m===6);tog('mT',m===0);tog('mZ',m===1);$('cloudlab').hidden=m>=2;legend();}
+$('mI').onclick=()=>setMode(3);$('mX').onclick=()=>setMode(4);$('mG').onclick=()=>setMode(5);$('mD').onclick=()=>setMode(6);
 $('mR').onclick=()=>setMode(2);$('mT').onclick=()=>setMode(0);$('mZ').onclick=()=>setMode(1);
 $('spd').oninput=e=>{speed=+e.target.value;if(cpu)cpu.postMessage({cmd:'cap',v:Math.ceil(speed/2)});};
 $('cloud').oninput=e=>{cloud=+e.target.value/100;};
@@ -284,7 +285,12 @@ $('center').onclick=()=>{if(sys.active)exitSystem();setFollow(-1);if(last){cam.t
 $('enter').onclick=()=>enterSystem(true);
 function legend(){const T=['#3c1459','#961f33','#dc5029','#ff963c','#ffd796','#fff8eb','#cddeff','#96b4ff'],Z=['#6e8cd6','#a0b0e0','#d6bf8c','#f58c45','#eb5029'];const css=a=>'linear-gradient(90deg,'+a.join(',')+')';
  const sw=(c,l)=>`<span><i class="dot" style="background:${c}"></i>${l}</span>`;
- $('legend').innerHTML=mode===2?sw('#6b381f','Gas freddo e polveri')+sw('#4d6bd9','Gas neutro')+sw('#f2336b','Idrogeno ionizzato (Hα)')+sw('#33d9c7','Ossigeno ionizzato')+sw('#9e94ff','Gas caldissimo')+`<span>Stelle <i class="ramp" style="background:linear-gradient(90deg,#ff6b29,#ffe0b3,#fff8ee,#94b3ff)"></i> rosse → blu</span>`+sw('#408cff','Pianeta con acqua')+sw('#59d973','Vita')+`<span><i class="dot" style="background:#000;box-shadow:0 0 0 2px #ff9e40"></i>Buco nero</span>`:((mode===0?`<span>Freddo<i class="ramp" style="background:${css(T)}"></i>Caldissimo</span>`:`<span>Solo H e He<i class="ramp" style="background:${css(Z)}"></i>Ricco di metalli</span>`)+`<span><i class="dot" style="background:#fff3c4;box-shadow:0 0 6px #ffd27a"></i>Stella</span><span><i class="dot" style="background:#c7e0ff"></i>Nana bianca</span><span><i class="dot" style="background:#73fff2"></i>Stella di neutroni</span><span><i class="dot" style="background:#000;box-shadow:0 0 0 2px #ff9e40"></i>Buco nero</span>${showDM?'<span><i class="dot" style="background:#8c6bff"></i>Materia oscura</span>':''}`);}
+ const BL={3:['Infrarosso: vede il calore. Le polveri fredde, scure nel visibile, qui brillano; le stelle fredde e le protostelle risaltano. Le nubi non assorbono.',[['#b32e0f','Polveri fredde'],['#ffbf73','Polveri tiepide'],['#ff8c4d','Stelle fredde']]],
+  4:['Raggi X: solo il gas a milioni di gradi (resti di supernova, aloni delle galassie) e la materia che cade nei buchi neri. Il colore più rosa indica più ferro.',[['#738cff','Gas caldissimo'],['#f28cff','Gas ricco di ferro'],['#9999ff','Buco nero che accresce, stella di neutroni']]],
+  5:['Gamma: i fenomeni più violenti. Esplosioni di supernova e kilonove, impulsi delle pulsar, getti dei buchi neri più attivi.',[['#ff59e6','Esplosioni e pulsar']]],
+  6:['Radio: idrogeno neutro (riga a 21 cm), invisibile all\'occhio, che mostra dove c\'è gas freddo; più pulsar e getti dei buchi neri.',[['#ff8c33','Idrogeno neutro'],['#e6669a','Elettroni veloci (sincrotrone)']]]};
+ if(BL[mode]){$('legend').innerHTML=BL[mode][1].map(([c,l])=>sw(c,l)).join('')+`<span style="flex-basis:100%;opacity:.8">${BL[mode][0]}</span>`;return;}
+ $('legend').innerHTML=mode===2?sw('#000;box-shadow:0 0 0 1px #6b381f','Polveri (assorbono la luce)')+sw('#f2336b','Idrogeno ionizzato (Hα)')+sw('#33d9c7','Ossigeno ionizzato')+sw('#9e94ff','Gas caldissimo')+`<span>Stelle <i class="ramp" style="background:linear-gradient(90deg,#ff6b29,#ffe0b3,#fff8ee,#94b3ff)"></i> rosse → blu</span>`+sw('#408cff','Pianeta con acqua')+sw('#59d973','Vita')+`<span><i class="dot" style="background:#000;box-shadow:0 0 0 2px #ff9e40"></i>Buco nero</span>`:((mode===0?`<span>Freddo<i class="ramp" style="background:${css(T)}"></i>Caldissimo</span>`:`<span>Solo H e He<i class="ramp" style="background:${css(Z)}"></i>Ricco di metalli</span>`)+`<span><i class="dot" style="background:#fff3c4;box-shadow:0 0 6px #ffd27a"></i>Stella</span><span><i class="dot" style="background:#c7e0ff"></i>Nana bianca</span><span><i class="dot" style="background:#73fff2"></i>Stella di neutroni</span><span><i class="dot" style="background:#000;box-shadow:0 0 0 2px #ff9e40"></i>Buco nero</span>${showDM?'<span><i class="dot" style="background:#8c6bff"></i>Materia oscura</span>':''}`);}
 legend();
 // ================= cronaca e statistiche =================
 const FIRST=[['fus','Prima stella: il gas collassa, si scalda e fonde idrogeno in elio'],['c','Nasce il carbonio: l\'elio brucia nel nucleo di una stella'],['o','Nasce l\'ossigeno'],['h2o','Prima acqua: in una nube fredda H e O formano H₂O'],['org','Prime molecole organiche (C, H, N, O)'],['mg','Nascono i metalli (Mg, Si)'],['fe','Nasce il ferro: la stella è alla fine'],['sn','Prima supernova: ossigeno, silicio, ferro e i primi elementi pesanti del processo r vengono dispersi nello spazio'],['planet','Primo sistema planetario: polveri fredde attorno a una stella'],['hz','Primo pianeta nella zona abitabile: acqua liquida in superficie'],['life','Prima forma di vita: chimica organica in acqua liquida diventa autoreplicante'],['spread','La vita si diffonde su un pianeta vicino']];
@@ -387,13 +393,21 @@ function systemInfo(arr,si){const N=arr.length/STRIDE,k0=si*STRIDE;let L=0,pl=0,
  for(let j=0;j<N;j++){const k=j*STRIDE;if(arr[k+16]!==0)continue;const d2=(arr[k]-arr[k0])**2+(arr[k+1]-arr[k0+1])**2+(arr[k+2]-arr[k0+2])**2;if(arr[k+7]>0&&d2<9)L+=arr[k+7];if(arr[k+8]>=1&&arr[k+12]>0&&d2<400){pl++;if(arr[k+8]>=2)hz++;if(arr[k+10]>0)life++;}}
  const Lrel=Math.max(0.01,L/LREF);const sp=SPEC.find(x=>Lrel>=x[1]);return{cls:sp[0],T:sp[3],L:Lrel,pl:Math.min(pl,9),hz,life};}
 let filterZ=0;
+let expo=1,expoT=0;
+function autoExposure(a){const B=camBasis(),e=[cam.t[0]+B.z[0]*cam.D,cam.t[1]+B.z[1]*cam.D,cam.t[2]+B.z[2]*cam.D];const v=[];const N=a.length/STRIDE;
+ for(let i=0;i<N;i++){const k=i*STRIDE,ty=a[k+16];if(ty===1||ty>4.5)continue;const m=Math.max(a[k+4],a[k+5],a[k+6]);
+  const dx=a[k]-e[0],dy=a[k+1]-e[1],dz=a[k+2]-e[2];const dd=dx*B.z[0]+dy*B.z[1]+dz*B.z[2];const w=-dd;if(w<=0.01)continue;
+  if(ty===0&&a[k+7]>0){const b=(a[k+7]/0.004)*(cam.D/w)**2*0.5*m;if(b>1e-6)v.push(b);}else if(ty===0&&m>1e-4)v.push(m*0.6);}
+ if(v.length<3)return;v.sort((x,y)=>x-y);const ref=v[Math.floor(v.length*0.97)];const target=Math.min(1e4,Math.max(0.02,0.9/Math.max(ref,1e-9)));
+ expo=Math.exp(Math.log(expo)+(Math.log(target)-Math.log(expo))*0.35);}
+function visibleP(a,k){const ty=a[k+16];if(ty===1)return false;if(ty===4)return a[k+18]>1e-4||mode===2;if(ty===2||ty===3)return mode!==6||ty===3;const m=Math.max(a[k+4],a[k+5],a[k+6]);if(a[k+7]>0)return m>1e-3;return m>(a[k+8]>=1?1e-3:0.03);}
 async function selectAt(e){const r=cv.getBoundingClientRect(),sx=(e.clientX-r.left)*cv.width/r.width,sy=(e.clientY-r.top)*cv.height/r.height;const {vp}=viewProj();
  if(filterZ)pickCache=null;const arr=await pickData();if(!arr)return;const N=arr.length/STRIDE;
- let best=-1,bs=1e9;const R2=(filterZ?44:36)**2*dpr()*dpr();
- for(let i=0;i<N;i++){const k=i*STRIDE,q=project(vp,arr[k],arr[k+1],arr[k+2]);if(!q)continue;const d=(q[0]-sx)**2+(q[1]-sy)**2;if(d>R2)continue;const ty=arr[k+16];if(ty>4.5)continue;
+ let best=-1,bs=1e9,anyI=-1,anyD=1e18;const R2=(filterZ?44:36)**2*dpr()*dpr();
+ for(let i=0;i<N;i++){const k=i*STRIDE,q=project(vp,arr[k],arr[k+1],arr[k+2]);if(!q)continue;const d=(q[0]-sx)**2+(q[1]-sy)**2;if(d>R2)continue;const ty=arr[k+16];if(ty>4.5)continue;if(mode>=2&&g&&!filterZ&&!visibleP(arr,k)){if(d<anyD){anyD=d;anyI=i;}continue;}
   if(filterZ){if(!(arr[k+19]>filterTh))continue;if(d<bs){bs=d;best=i;}continue;}
   const pr=ty===4?3:arr[k+7]>0?2.6:arr[k+8]>=1?2.3:(ty===2||ty===3)?2:ty===1?-3:-2;const score=d/R2-pr;if(score<bs){bs=score;best=i;}}
- if(best<0)return;
+ if(best<0){if(anyI>=0&&cam.D>GAL_D*0.5){const k=anyI*STRIDE;const G=analyzeGalaxy(arr,[arr[k],arr[k+1],arr[k+2]]);if(G.center>=0&&G.stars>0)selectGalaxy(G);}return;}
  if(filterZ){clearFilter();selectObject(arr,best);return;}
  const k=best*STRIDE,ty=arr[k+16],plain=(ty===0&&arr[k+7]<=0&&arr[k+8]<1)||ty===1;
  if((cam.D>GAL_D&&!(sel&&sel.kind==='galaxy'))||plain){const G=analyzeGalaxy(arr,[arr[k],arr[k+1],arr[k+2]]);if(G.center<0)return;selectGalaxy(G);return;}
@@ -508,7 +522,7 @@ function drawProbe(now){const c=$('probec'),x=c.getContext('2d'),W=c.width,H=c.h
   if(acc>0.7){for(const sgn of[-1,1]){const jg=x.createLinearGradient(cx,cy,cx,cy+sgn*R*5);jg.addColorStop(0,'rgba(160,200,255,.5)');jg.addColorStop(1,'rgba(160,200,255,0)');x.fillStyle=jg;x.beginPath();x.moveTo(cx-R*0.12,cy);x.lineTo(cx+R*0.12,cy);x.lineTo(cx+R*0.35,cy+sgn*R*5);x.lineTo(cx-R*0.35,cy+sgn*R*5);x.closePath();x.fill();}}}
  else if(k==='wd'){const R=R0*0.22;const neb=x.createRadialGradient(cx,cy,R*2,cx,cy,R*7);neb.addColorStop(0,'rgba(90,220,200,0)');neb.addColorStop(0.6,'rgba(90,220,200,.18)');neb.addColorStop(0.85,'rgba(255,120,170,.14)');neb.addColorStop(1,'rgba(255,120,170,0)');x.fillStyle=neb;x.beginPath();x.arc(cx,cy,R*7,0,6.283);x.fill();
   const gw=x.createRadialGradient(cx,cy,0,cx,cy,R*2.2);gw.addColorStop(0,'rgba(235,245,255,1)');gw.addColorStop(0.45,'rgba(200,220,255,.9)');gw.addColorStop(1,'rgba(150,180,255,0)');x.fillStyle=gw;x.beginPath();x.arc(cx,cy,R*2.2,0,6.283);x.fill();}
- else if(k==='ns'){const R=R0*0.1,a=t*6;for(const s2 of[0,Math.PI]){const g2=x.createLinearGradient(cx,cy,cx+Math.cos(a+s2)*R*30,cy+Math.sin(a+s2)*R*30);g2.addColorStop(0,'rgba(140,255,240,.55)');g2.addColorStop(1,'rgba(140,255,240,0)');x.fillStyle=g2;x.beginPath();x.moveTo(cx,cy);x.lineTo(cx+Math.cos(a+s2-0.08)*R*30,cy+Math.sin(a+s2-0.08)*R*30);x.lineTo(cx+Math.cos(a+s2+0.08)*R*30,cy+Math.sin(a+s2+0.08)*R*30);x.closePath();x.fill();}
+ else if(k==='ns'){if(pgInit()){const R=R0*0.22,ext=14;const img=pgRender(2*R*ext,{uKind:3,uT:t,uExt:ext,uAct:0.6+1.4*pgHash(cam.follow),uCam:camM});if(img){x.drawImage(img,cx-R*ext,cy-R*ext,2*R*ext,2*R*ext);x.globalAlpha=1;return;}}const R=R0*0.1,a=t*6;for(const s2 of[0,Math.PI]){const g2=x.createLinearGradient(cx,cy,cx+Math.cos(a+s2)*R*30,cy+Math.sin(a+s2)*R*30);g2.addColorStop(0,'rgba(140,255,240,.55)');g2.addColorStop(1,'rgba(140,255,240,0)');x.fillStyle=g2;x.beginPath();x.moveTo(cx,cy);x.lineTo(cx+Math.cos(a+s2-0.08)*R*30,cy+Math.sin(a+s2-0.08)*R*30);x.lineTo(cx+Math.cos(a+s2+0.08)*R*30,cy+Math.sin(a+s2+0.08)*R*30);x.closePath();x.fill();}
   const gw=x.createRadialGradient(cx,cy,0,cx,cy,R*3);gw.addColorStop(0,'rgba(230,255,255,1)');gw.addColorStop(0.4,'rgba(120,255,240,.8)');gw.addColorStop(1,'rgba(120,255,240,0)');x.fillStyle=gw;x.beginPath();x.arc(cx,cy,R*3,0,6.283);x.fill();}
  else if(k==='gas'){const hot=S.u>0.004;for(let q=0;q<5;q++){const a=q*1.26+t*0.05,rr=R0*(0.5+0.25*Math.sin(t*0.3+q));const gx=cx+Math.cos(a)*R0*0.35,gy=cy+Math.sin(a)*R0*0.3;const gr=x.createRadialGradient(gx,gy,0,gx,gy,rr);gr.addColorStop(0,hot?'rgba(255,150,90,.25)':'rgba(110,140,230,.22)');gr.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=gr;x.beginPath();x.arc(gx,gy,rr,0,6.283);x.fill();}}
  x.globalAlpha=1;}
@@ -552,8 +566,9 @@ async function gpuFrame(now){if(g.lost)return;
  if(cam.fly){cam.D=Math.exp(Math.log(cam.D)+(Math.log(cam.fly.D)-Math.log(cam.D))*0.08);if(Math.abs(Math.log(cam.D/cam.fly.D))<0.02){cam.D=cam.fly.D;cam.fly=null;}}
  const galaxyVisible=(!sys.active||sys.alpha<1)&&!(micro.active&&(performance.now()-micro.t0)>500);
  const doRender=galaxyVisible&&(!turbo||now-lastRender>400);
+ if(mode>=2&&now-expoT>600){expoT=now;pickData().then(a=>{if(a)autoExposure(a);});}
  if(doRender){lastRender=now;g.prep(mode);const {vp,f}=viewProj();const d=dpr(),dens=Math.sqrt(16384/g.N);
-  g.render(new Float32Array(vp),{fon:!!filterZ,fth:filterTh,real:mode===2,dm:showDM,px:(cv.clientWidth<600?1.7:1.25)*d,cloudA:cloud*0.3*Math.cbrt(16384/g.N),cloudK:2.4*f,cloudMax:60*d,ptA:Math.max(0.3,Math.min(0.95,0.95*dens))});}
+  g.render(new Float32Array(vp),{fon:!!filterZ,fth:filterTh,real:mode>=2,band:mode-1,camD:cam.D,exposure:expo,dm:showDM,px:(cv.clientWidth<600?1.7:1.25)*d,cloudA:mode>=2?1:cloud*0.3*Math.cbrt(16384/g.N),cloudK:2.4*f,cloudMax:60*d,ptA:Math.max(0.3,Math.min(0.95,0.95*dens))});}
  else if(sys.active&&now-lastRender>1000){lastRender=now;g.prep(mode);}
  await g.done();const dt=performance.now()-t0;
  if(n>0){msStep=msStep?msStep*0.85+(dt/n)*0.15:dt/n;const tgt=turbo?140:24;stepsPF=Math.max(1,Math.min(400,Math.round(stepsPF*Math.min(1.5,Math.max(0.6,tgt/Math.max(1,dt))))));}
@@ -765,7 +780,7 @@ function gasInGalaxy(G){pickData().then(arr=>{if(!arr)return;const N=arr.length/
  if(best>=0)enterMicro('gas',best);else toast('Nessuna nube di gas qui');});}
 // ================= ripiego su CPU =================
 let cpuSnap=null,ctx2=null;
-function startCPU(reason){$('boot').innerHTML=`<div><b>WebGPU non disponibile</b>${reason}. Uso la versione su processore con 3.000 particelle: per decine di migliaia di particelle apri la pagina con Chrome aggiornato (Android, Windows, Mac) o Safari su iOS 26.</div>`;
+function startCPU(reason){document.querySelectorAll('.gpuonly').forEach(b=>b.hidden=true);$('boot').innerHTML=`<div><b>WebGPU non disponibile</b>${reason}. Uso la versione su processore con 3.000 particelle: per decine di migliaia di particelle apri la pagina con Chrome aggiornato (Android, Windows, Mac) o Safari su iOS 26.</div>`;
  setTimeout(()=>{$('boot').hidden=true;},6000);
  const nc=$('c2');nc.hidden=false;ctx2=nc.getContext('2d');
  const src=$('cpucode').textContent;cpu=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));cpu.onmessage=e=>{cpuSnap=e.data;if(cpuSnap.comp)onObjComp(cpuSnap.comp,true);};cpu.postMessage({cmd:'init',n:3000});

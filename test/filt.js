@@ -1,0 +1,11 @@
+const { chromium } = require('/opt/npm-tools/node_modules/playwright');
+(async()=>{const args=['--headless=new','--enable-unsafe-webgpu','--enable-unsafe-swiftshader','--use-angle=swiftshader','--enable-features=Vulkan','--use-vulkan=swiftshader','--disable-vulkan-surface','--ignore-gpu-blocklist'];
+ const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',headless:true,args});const p=await b.newPage({viewport:{width:900,height:900}});
+ const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('console',m=>{const t=m.text();if(m.type()==='error'||/WGSL|shader|Validation/i.test(t))errs.push(t)});
+ await p.goto('file:///home/claude/v4/universo4.html');await p.waitForTimeout(70000);
+ console.log(await p.evaluate(()=>document.body.innerText.match(/[\d.]+ particelle[^\n]*/)?.[0]));
+ await p.evaluate(()=>window.__genesi.applyFilter(2));console.log('toast',await p.evaluate(()=>document.getElementById('toast').textContent));await p.waitForTimeout(4000);
+ console.log(await p.evaluate(async()=>{const g=window.__genesi;const a=await g.pickData();let m=0,N=a.length/20;for(let i=0;i<N;i++)if(a[i*20+19]>0.5)m++;return 'filterZ '+g.filterZ+' match '+m+'/'+N+' chip '+document.querySelector('#selcard').innerText.replace(/\n/g,' ');}));
+ await p.evaluate(async()=>{const g=window.__genesi;const a=await g.pickData();for(let i=0;i<a.length/20;i++)if(a[i*20+19]>0.5){g.clearFilter();g.selectObject(a,i);break;}});await p.waitForTimeout(3000);
+ console.log(await p.evaluate(()=>{const g=window.__genesi;return 'after: filterZ '+g.filterZ+' sel '+(g.sel&&g.sel.kind)+' probe '+g.probe.on;}));
+ console.log(errs.slice(0,8).join('\n'));await b.close();})();

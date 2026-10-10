@@ -1,0 +1,23 @@
+const { chromium,devices } = require('/opt/npm-tools/node_modules/playwright');
+(async()=>{const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',headless:true,args:['--headless=new']});
+ const ctx=await b.newContext({...devices['Pixel 7']});const p=await ctx.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('console',m=>{if(m.type()==='error')errs.push(m.text())});
+ await p.addInitScript(()=>{document.addEventListener('DOMContentLoaded',()=>{const m=document.createElement('meta');m.name='viewport';m.content='width=device-width,initial-scale=1';document.head.appendChild(m);});});
+ await p.goto('file:///home/claude/v4/universo4.html');await p.waitForTimeout(50000);
+ await p.evaluate(()=>window.__genesi.nextGalaxy());await p.waitForTimeout(2500);
+ await p.screenshot({path:'/home/claude/v4/pr1.png'});
+ const box=await p.$eval('#cv',c=>{const r=c.getBoundingClientRect();return[r.x+r.width/2,r.y+r.height/2];});
+ await p.touchscreen.tap(box[0]+2,box[1]+2);await p.waitForTimeout(3000);
+ const st=()=>p.evaluate(()=>{const g=window.__genesi,s=g.sel;return JSON.stringify({k:s&&s.kind,probe:g.probe&&g.probe.on,pk:g.probe&&g.probe.kind,D:+g.cam.D.toFixed(2),chip:(document.querySelector('#chipwrap')||{}).innerText});});
+ console.log('tap',await st());
+ await p.screenshot({path:'/home/claude/v4/pr2.png'});
+ // drag rotate
+ await p.mouse.move(box[0],box[1]);await p.mouse.down();await p.mouse.move(box[0]+150,box[1]+60,{steps:10});await p.mouse.up();
+ await p.mouse.wheel(0,400);await p.waitForTimeout(1500);
+ console.log('after rot/zoom',await st());
+ await p.screenshot({path:'/home/claude/v4/pr3.png'});
+ const r=await p.evaluate(async()=>{const g=window.__genesi;const a=await g.pickData();const S=20,N=a.length/S;let bi=-1,bl=0;for(let i=0;i<N;i++)if(a[i*S+16]===0&&a[i*S+7]>bl){bl=a[i*S+7];bi=i;}if(bi<0)return'nostar';g.selectObject(a,bi);return bi;});
+ console.log('star',r);await p.waitForTimeout(3000);console.log('star sel',await st());await p.screenshot({path:'/home/claude/v4/pr4.png'});
+ await p.mouse.move(box[0],box[1]);await p.mouse.down();await p.mouse.move(box[0]-200,box[1]+80,{steps:12});await p.mouse.up();await p.mouse.wheel(0,-300);await p.waitForTimeout(2000);
+ console.log('star after rot',await st());await p.screenshot({path:'/home/claude/v4/pr5.png'});
+ console.log('dmb',await p.$('#dmb'),'lamb',await p.$('#lamb'));
+ console.log(errs.join('\n'));await b.close();})();

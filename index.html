@@ -137,6 +137,7 @@ details ul{padding-left:18px;margin:8px 0 0}details li{margin-bottom:4px}
    <div class="scalebar" id="scalebox"><i id="sbar"></i><span id="slab">—</span></div>
    <div class="zoom"><button id="zin" aria-label="Avvicina">+</button><button id="zout" aria-label="Allontana">−</button></div>
    <button class="enter" id="enter" hidden>Entra nel sistema</button>
+   <canvas id="probec" class="over"></canvas>
    <canvas id="microc" class="over" hidden></canvas>
    <div class="mlog" id="mlog" hidden></div><div class="mleg" id="mleg" hidden></div>
    <div class="chipwrap" id="selcard" hidden></div>
@@ -151,14 +152,12 @@ details ul{padding-left:18px;margin:8px 0 0}details li{margin-bottom:4px}
    <button id="center">Centra</button>
    <button id="nextg">Prossima galassia ›</button>
    <div class="seg" role="group" aria-label="Colore delle particelle">
-    <button id="mT" aria-pressed="true">Temperatura</button><button id="mZ" aria-pressed="false">Composizione</button>
+    <button id="mR" aria-pressed="true">Realistico</button><button id="mT" aria-pressed="false">Temperatura</button><button id="mZ" aria-pressed="false">Composizione</button>
    </div>
    <label class="lab" for="npart">Particelle <select id="npart"></select></label>
    <label class="lab" for="cloud">Nubi <input id="cloud" type="range" min="0" max="100" step="1" value="55"></label>
    <label class="lab" for="spd">Velocità <input id="spd" type="range" min="1" max="10" step="1" value="6"></label>
    <button id="spin" aria-pressed="true">Rotazione</button>
-   <button id="dmb" aria-pressed="false">Mostra materia oscura</button>
-   <button id="lamb" aria-pressed="true">Energia oscura</button>
   </div>
   <div class="ctrl"><label class="lab" for="seed">Seme</label><input id="seed" inputmode="numeric" autocomplete="off" style="font:500 13px var(--f-mono);background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:5px;padding:8px 10px;width:130px"><button id="seedGo">Crea questo universo</button><span class="lab" id="seedNote">Stesso seme, stesso Big Bang. Il link della pagina con #s seguito dal numero apre sempre questo universo.</span></div>
   <p class="hint">Tocca una galassia per selezionarla, poi una stella per entrare nel suo sistema e un pianeta per vederlo da vicino · trascina per ruotare · rotella o pizzico per lo zoom · Shift+trascina o due dita per spostarti.</p>
@@ -371,7 +370,7 @@ if(typeof module!=='undefined')module.exports={ELEM,SOLAR,elementMasses};
 // Tipi di particella (comp[4i+3].x): 0 gas · 1 materia oscura · 2 nana bianca · 3 stella di neutroni · 4 buco nero · 5 inattiva (inghiottita)
 const UF=['N','TB','step','doLife','j0','j1','mode','spare'];
 const FF=['G','EPS2','MP','LS','CS','RN2','HMIN','NGB','DT','VMAX','UMIN','UMAX','T1','T2','T3','T4','K1','RHO1','QS','FH','lam','rhoThick','metK','vdamp','mix','snk','snu','snCool','feSN','zSN','Tmol','Tdust','dustP','lumStar','T0','F0','watMin','orgMin','orgK','gr','spread','pAbio','cx','cy','cz','rsMin','Ks','Kr','Kl','FeSun','CNOsun',
- 'Lam','pIa','pKN','KrKN','kAGN','Ks2','fWD','fNS','fBH','mWD','mNS','mBH','mGas','racMax','bondi','rMerge','nsKick','sp5','sp6','sp7'];
+ 'Lam','pIa','pKN','KrKN','kAGN','Ks2','fWD','fNS','fBH','mWD','mNS','mBH','mGas','racMax','bondi','rMerge','nsKick','sp5','sp6','sp7','fw0','fw1','fw2','fw3','fw4','fw5','fw6','fw7','fw8','fw9','fth','fon','pz0'];
 const PSTRUCT='struct P{'+UF.map(f=>f+':u32,').join('')+FF.map(f=>f+':f32,').join('')+'};';
 const PWORDS=UF.length+FF.length;
 const COMMON=PSTRUCT+`
@@ -593,15 +592,29 @@ fn rampT(t:f32)->vec3<f32>{var c=array<vec3<f32>,8>(vec3(0.24,0.08,0.35),vec3(0.
  let x=clamp(t,0.0,0.9999)*7.0;let k=u32(floor(x));return mix(c[k],c[k+1u],fract(x));}
 fn rampZ(t:f32)->vec3<f32>{var c=array<vec3<f32>,5>(vec3(0.43,0.55,0.84),vec3(0.63,0.69,0.88),vec3(0.84,0.75,0.55),vec3(0.96,0.55,0.27),vec3(0.92,0.31,0.16));
  let x=clamp(t,0.0,0.9999)*4.0;let k=u32(floor(x));return mix(c[k],c[k+1u],fract(x));}
+fn rampB(t:f32)->vec3<f32>{var c=array<vec3<f32>,6>(vec3(1.0,0.42,0.16),vec3(1.0,0.66,0.38),vec3(1.0,0.88,0.70),vec3(1.0,0.97,0.93),vec3(0.80,0.87,1.0),vec3(0.58,0.70,1.0));
+ let x=clamp(t,0.0,0.9999)*5.0;let k=u32(floor(x));return mix(c[k],c[k+1u],fract(x));}
+fn realCol(u:f32,A:vec4<f32>,B:vec4<f32>,D:vec4<f32>,b0:vec4<f32>,b1:vec4<f32>,rho:f32)->vec3<f32>{
+ if(D.x==0.0&&B.w>p.lumStar){var x=clamp(log2(B.w/p.lumStar)/10.0,0.0,1.0);if(A.x<0.35){x*=0.25;}return rampB(x);}
+ if(D.x==0.0&&b0.x>0.0){return vec3<f32>(0.35,0.85,0.45);}
+ if(D.x==0.0&&b0.z>0.0){let te=b0.z;if(te<273.0){return mix(vec3<f32>(0.55,0.70,0.95),vec3<f32>(0.85,0.92,1.0),clamp((273.0-te)/150.0,0.0,1.0));}if(te<=373.0){return vec3<f32>(0.25,0.55,1.0);}return mix(vec3<f32>(0.85,0.55,0.30),vec3<f32>(1.0,0.35,0.12),clamp((te-373.0)/800.0,0.0,1.0));}
+ let t=(log2(max(u,1e-5))*0.30103+5.0)/3.6;let zm=clamp(sqrt(max(0.0,1.0-A.x-A.y)/0.15),0.0,1.0);
+ let cold=mix(vec3<f32>(0.62,0.33,0.17),vec3<f32>(0.40,0.19,0.11),clamp(b1.z*4.0+zm*0.5,0.0,1.0));
+ let warm=vec3<f32>(0.36,0.52,1.0);
+ let hii=mix(vec3<f32>(0.95,0.20,0.40),vec3<f32>(0.20,0.85,0.78),zm*0.8);
+ let xr=vec3<f32>(0.62,0.58,1.0);
+ var c=mix(cold,warm,smoothstep(0.22,0.40,t));c=mix(c,hii,smoothstep(0.45,0.62,t));c=mix(c,xr,smoothstep(0.82,0.95,t));return c;}
 @compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3<u32>){let i=g.x;if(i>=p.N){return;}
  let ps=pos[i];let u=vel[i].w;let A=comp[4u*i];let B=comp[4u*i+1u];let D=comp[4u*i+3u];let b0=bio[2u*i];let b1=bio[2u*i+1u];
- var col:vec3<f32>;if(p.mode==0u){col=rampT((log2(max(u,1e-5))*0.30103+5.0)/3.6);}else{col=rampZ(sqrt(max(0.0,1.0-A.x-A.y)/0.15));}
+ var col:vec3<f32>;if(p.mode==2u){col=realCol(u,A,B,D,b0,b1,dens[i].x);}else if(p.mode==0u){col=rampT((log2(max(u,1e-5))*0.30103+5.0)/3.6);}else{col=rampZ(sqrt(max(0.0,1.0-A.x-A.y)/0.15));}
  var ring=0.0;if(D.x==0.0){if(b0.z>0.0){ring=select(1.0,2.0,b0.z>=273.0&&b0.z<=373.0);}if(b0.x>0.0){ring=3.0;}}
  var fl=0.0;if(b0.w>250.0){fl=(b0.w-250.0)/50.0;}
  rb[5u*i]=vec4<f32>(ps.xyz,ps.w);rb[5u*i+1u]=vec4<f32>(col,select(0.0,B.w,B.w>p.lumStar&&D.x==0.0));rb[5u*i+2u]=vec4<f32>(ring,b0.y,b0.x,min(dens[i].x,1e4));
- rb[5u*i+3u]=vec4<f32>(b0.z,max(0.0,1.0-A.x-A.y),b1.x,b1.y);rb[5u*i+4u]=vec4<f32>(D.x,D.y/max(p.mGas,1e-9),D.z/max(p.mGas,1e-9),fl);}`;
+ rb[5u*i+3u]=vec4<f32>(b0.z,max(0.0,1.0-A.x-A.y),b1.x,b1.y);let C=comp[4u*i+2u];let fv=p.fw0*A.x+p.fw1*A.y+p.fw2*A.z+p.fw3*A.w+p.fw4*B.x+p.fw5*B.y+p.fw6*B.z+p.fw7*C.x+p.fw8*C.y+p.fw9*C.z;
+ let mt=select(-1.0,fv,p.fon>0.5&&D.x==0.0);
+ rb[5u*i+4u]=vec4<f32>(D.x,D.y/max(p.mGas,1e-9),D.z/max(p.mGas,1e-9),mt);}`;
 const RS=`
-struct V{vp:mat4x4<f32>,vw:f32,vh:f32,px:f32,cloudA:f32,cloudK:f32,cloudMax:f32,ptA:f32,dm:f32};
+struct V{vp:mat4x4<f32>,vw:f32,vh:f32,px:f32,cloudA:f32,cloudK:f32,cloudMax:f32,ptA:f32,dm:f32,fon:f32,q1:f32,q2:f32,q3:f32};
 @group(0) @binding(0) var<uniform> v:V;
 struct O{@builtin(position) pos:vec4<f32>,@location(0) uv:vec2<f32>,@location(1) col:vec4<f32>,@location(2) ex:vec4<f32>};
 fn corner(k:u32)->vec2<f32>{var c=array<vec2<f32>,6>(vec2(-1.,-1.),vec2(1.,-1.),vec2(-1.,1.),vec2(-1.,1.),vec2(1.,-1.),vec2(1.,1.));return c[k];}
@@ -609,24 +622,25 @@ fn place(c:vec4<f32>,uv:vec2<f32>,rpx:f32)->vec4<f32>{return vec4<f32>(c.xy+uv*v
 const OFF=vec4<f32>(2.,2.,2.,1.);
 @vertex fn vcloud(@builtin(vertex_index) vi:u32,@location(0) a:vec4<f32>,@location(1) b:vec4<f32>,@location(2) e:vec4<f32>,@location(3) t:vec4<f32>)->O{var o:O;let uv=corner(vi);let c=v.vp*vec4<f32>(a.xyz,1.0);
  let rpx=min(a.w*v.cloudK*v.vh*0.5/max(c.w,1e-4),v.cloudMax);
- if(t.x!=0.0||c.w<=0.0||rpx<0.6){o.pos=OFF;return o;}
+ if(t.x!=0.0||c.w<=0.0||rpx<0.6||v.fon>0.5){o.pos=OFF;return o;}
  o.pos=place(c,uv,rpx);o.uv=uv;let dens=clamp(0.6/sqrt(1.0+e.w*0.5),0.12,0.6);let lu=dot(b.rgb,vec3<f32>(0.3,0.6,0.1));o.col=vec4<f32>(b.rgb,v.cloudA*dens*min(1.0,rpx/3.0)/(1.0+lu*lu*4.0));o.ex=vec4<f32>(0.);return o;}
 @fragment fn fcloud(i:O)->@location(0) vec4<f32>{let r2=dot(i.uv,i.uv);if(r2>1.0){discard;}let a=i.col.a*exp(-r2*3.5);return vec4<f32>(i.col.rgb*a,a);}
 @vertex fn vpt(@builtin(vertex_index) vi:u32,@location(0) a:vec4<f32>,@location(1) b:vec4<f32>,@location(2) e:vec4<f32>,@location(3) t:vec4<f32>)->O{var o:O;let uv=corner(vi);let c=v.vp*vec4<f32>(a.xyz,1.0);
  if(c.w<=0.0||t.x>4.5){o.pos=OFF;return o;}
  var rpx=v.px;var col=vec4<f32>(b.rgb,v.ptA);var star=0.0;
+ if(v.fon>0.5){if(t.w<=v.q1){o.pos=OFF;return o;}o.pos=place(c,uv,v.px*2.6);o.uv=uv;o.col=vec4<f32>(1.0,0.84,0.48,1.0);o.ex=vec4<f32>(1.0,0.,0.,0.);return o;}
  if(t.x==4.0){rpx=v.px*clamp(3.0+log2(1.0+t.y)*1.6,3.0,22.0);o.pos=place(c,uv,rpx);o.uv=uv;o.col=vec4<f32>(1.0,0.62,0.25,clamp(0.35+log2(1.0+t.z*200.0)*0.25,0.35,1.0));o.ex=vec4<f32>(2.0,0.,0.,0.);return o;}
  if(t.x==1.0){if(v.dm<0.5){o.pos=OFF;return o;}col=vec4<f32>(0.55,0.42,1.0,0.28);}
  else if(t.x==2.0){rpx=v.px*2.2;col=vec4<f32>(0.78,0.88,1.0,1.0);star=1.0;}
  else if(t.x==3.0){rpx=v.px*2.0;col=vec4<f32>(0.45,1.0,0.95,1.0);star=1.0;}
- else if(b.w>0.0){rpx=v.px*clamp(2.0+sqrt(b.w)*14.0,2.0,6.0);col=vec4<f32>(1.0,0.93,0.75,1.0);star=1.0;}
+ else if(b.w>0.0){rpx=v.px*clamp(2.0+sqrt(b.w)*14.0,2.0,6.0);col=select(vec4<f32>(1.0,0.93,0.75,1.0),vec4<f32>(b.rgb,1.0),v.q2>0.5);star=1.0;}
  o.pos=place(c,uv,rpx);o.uv=uv;o.col=col;o.ex=vec4<f32>(star,0.,0.,0.);return o;}
 @fragment fn fpt(i:O)->@location(0) vec4<f32>{let r2=dot(i.uv,i.uv);if(r2>1.0){discard;}
  var a=i.col.a;if(i.ex.x>1.5){let r=sqrt(r2);a=0.8*i.col.a*exp(-pow((r-0.36)*5.0,2.0))*(1.0-r);}else if(i.ex.x>0.5){a=0.9*exp(-r2*16.0)+0.05*exp(-r2*3.0);}else{a*=1.0-smoothstep(0.55,1.0,sqrt(r2));}
  return vec4<f32>(i.col.rgb*a,a);}
 @vertex fn vring(@builtin(vertex_index) vi:u32,@location(0) a:vec4<f32>,@location(1) b:vec4<f32>,@location(2) e:vec4<f32>,@location(3) t:vec4<f32>)->O{var o:O;let uv=corner(vi);let c=v.vp*vec4<f32>(a.xyz,1.0);
  if(c.w<=0.0){o.pos=OFF;return o;}
- if(t.x==4.0){let rpx=v.px*clamp(3.0+log2(1.0+t.y)*1.6,3.0,22.0);o.pos=place(c,uv,rpx);o.uv=uv;o.col=vec4<f32>(1.0,0.62,0.25,clamp(0.35+log2(1.0+t.z*200.0)*0.25,0.35,1.0));o.ex=vec4<f32>(1.0,0.,0.,0.);return o;}
+ if(t.x==4.0&&v.fon<0.5){let rpx=v.px*clamp(3.0+log2(1.0+t.y)*1.6,3.0,22.0);o.pos=place(c,uv,rpx);o.uv=uv;o.col=vec4<f32>(1.0,0.62,0.25,clamp(0.35+log2(1.0+t.z*200.0)*0.25,0.35,1.0));o.ex=vec4<f32>(1.0,0.,0.,0.);return o;}
  o.pos=OFF;return o;}
 @fragment fn fring(i:O)->@location(0) vec4<f32>{let r=length(i.uv);
  if(i.ex.x>0.5){if(r>0.32){discard;}return vec4<f32>(0.0,0.0,0.0,1.0);}
@@ -707,7 +721,7 @@ class GenesisGPU{
    d.queue.submit([e.finish()]);}
  }
  prep(mode){this.setU('mode',mode||0);this.dev.queue.writeBuffer(this.ub,0,this.uarr);const e=this.dev.createCommandEncoder();this.pass(e,'prep',Math.ceil(this.N/64));this.dev.queue.submit([e.finish()]);}
- render(vp,o){const d=this.dev,W=this.canvas.width,H=this.canvas.height;const f=new Float32Array(28);f.set(vp,0);f[16]=W;f[17]=H;f[18]=o.px;f[19]=o.cloudA;f[20]=o.cloudK;f[21]=o.cloudMax;f[22]=o.ptA;f[23]=o.dm?1:0;
+ render(vp,o){const d=this.dev,W=this.canvas.width,H=this.canvas.height;const f=new Float32Array(28);f.set(vp,0);f[16]=W;f[17]=H;f[18]=o.px;f[19]=o.cloudA;f[20]=o.cloudK;f[21]=o.cloudMax;f[22]=o.ptA;f[23]=o.dm?1:0;f[24]=o.fon?1:0;f[25]=o.fth||0;f[26]=o.real?1:0;
   d.queue.writeBuffer(this.vub,0,f);const e=d.createCommandEncoder();
   const tex=o.view?null:this.ctx.getCurrentTexture();const tw=o.view?(o.w||W):tex.width,th=o.view?(o.h||H):tex.height;
   if(!this.depth||this.depth.width!==tw||this.depth.height!==th){if(this.depth)this.depth.destroy();this.depth=d.createTexture({size:[tw,th],format:'depth24plus',usage:GPUTextureUsage.RENDER_ATTACHMENT});}
@@ -890,7 +904,7 @@ tick();
 const $=id=>document.getElementById(id),cv=$('cv');
 const NOPT=[8192,16384,32768,65536,131072,262144];
 $('npart').innerHTML=NOPT.map(n=>`<option value="${n}">${n.toLocaleString('it-IT')}</option>`).join('');
-let run=true,spin=true,turbo=false,mode=0,speed=6,cloud=0.55,showDM=false,lamOn=true;
+let run=true,spin=true,turbo=false,mode=2,speed=6,cloud=0.55,showDM=true,lamOn=true;
 if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){spin=false;$('spin').setAttribute('aria-pressed','false');}
 const dpr=()=>Math.min(2,window.devicePixelRatio||1);
 // ================= camera orbitale =================
@@ -902,7 +916,7 @@ function viewProj(){const W=cv.width,H=cv.height,B=camBasis(),e=[cam.t[0]+B.z[0]
  const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];const v=[B.x[0],B.y[0],B.z[0],0,B.x[1],B.y[1],B.z[1],0,B.x[2],B.y[2],B.z[2],0,-dot(B.x,e),-dot(B.y,e),-dot(B.z,e),1];
  const f=1/Math.tan(cam.fov/2);return{vp:mul(persp(f,W/H,cam.D*0.002,cam.D*400+20000),v),f};}
 function project(vp,x,y,z){const cx=vp[0]*x+vp[4]*y+vp[8]*z+vp[12],cy=vp[1]*x+vp[5]*y+vp[9]*z+vp[13],cw=vp[3]*x+vp[7]*y+vp[11]*z+vp[15];if(cw<=0)return null;return[(cx/cw+1)/2*cv.width,(1-cy/cw)/2*cv.height,cw];}
-function size(){const d=dpr(),w=cv.clientWidth,h=cv.clientHeight;cv.width=Math.max(1,Math.round(w*d));cv.height=Math.max(1,Math.round(h*d));for(const id of ['c2','sysc','selc','microc']){const c=$(id);c.width=cv.width;c.height=cv.height;}}
+function size(){const d=dpr(),w=cv.clientWidth,h=cv.clientHeight;cv.width=Math.max(1,Math.round(w*d));cv.height=Math.max(1,Math.round(h*d));for(const id of ['c2','sysc','selc','microc','probec']){const c=$(id);c.width=cv.width;c.height=cv.height;}}
 window.addEventListener('resize',size);size();
 // ================= interazione =================
 let drag=null,pts=new Map(),pinch=null,lastTap=0,userTouched=false,downAt=null;
@@ -910,7 +924,7 @@ cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);pts.set(
  });
 cv.addEventListener('pointermove',e=>{if(!pts.has(e.pointerId))return;pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
  if(pts.size>=2){const a=[...pts.values()];const d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y),mx=(a[0].x+a[1].x)/2,my=(a[0].y+a[1].y)/2;
-  if(pinch){zoomBy(pinch.d/d);if(!sys.active)panBy(mx-pinch.mx,my-pinch.my);}pinch={d,mx,my};return;}
+  if(pinch){zoomBy(pinch.d/d);if(!sys.active&&!sel)panBy(mx-pinch.mx,my-pinch.my);}pinch={d,mx,my};return;}
  if(!drag||micro.active)return;if(!drag.moved){if(Math.hypot(e.clientX-downAt.x,e.clientY-downAt.y)<(e.pointerType==='touch'?14:4))return;drag.moved=true;drag.x=e.clientX;drag.y=e.clientY;return;}const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag.x=e.clientX;drag.y=e.clientY;
  if(sys.active){sys.tilt=Math.max(0.12,Math.min(1,sys.tilt+dy*0.004));sys.spin+=dx*0.006;return;}
  if(drag.pan)panBy(dx,dy);else{cam.yaw-=dx*0.006;cam.pitch=Math.max(-1.45,Math.min(1.45,cam.pitch+dy*0.006));}});
@@ -919,22 +933,21 @@ cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',e=>{pts.
 cv.addEventListener('wheel',e=>{e.preventDefault();zoomBy(Math.exp(e.deltaY*0.0015));},{passive:false});
 
 function zoomBy(k){cam.fly=null;if(micro.active){micro.zo+=Math.log(k);if(micro.zo>0.6)exitMicro();return;}if(sys.active){sys.zoom/=k;if(sys.zoom<sys.fit*0.3){exitSystem();}else sys.zoom=Math.min(sys.zoom,sys.fit*80);return;}cam.D=Math.max(0.3,Math.min(2e6,cam.D*k));}
-function panBy(dx,dy){if(cam.follow>=0)setFollow(-1);const B=camBasis(),wpp=2*cam.D*Math.tan(cam.fov/2)/cv.clientHeight;for(let k=0;k<3;k++)cam.t[k]+=(-dx*B.x[k]+dy*B.y[k])*wpp;}
+function panBy(dx,dy){if(sel)return;if(cam.follow>=0)setFollow(-1);const B=camBasis(),wpp=2*cam.D*Math.tan(cam.fov/2)/cv.clientHeight;for(let k=0;k<3;k++)cam.t[k]+=(-dx*B.x[k]+dy*B.y[k])*wpp;}
 $('zin').onclick=()=>zoomBy(1/1.6);$('zout').onclick=()=>zoomBy(1.6);
 const tog=(id,v)=>$(id).setAttribute('aria-pressed',String(v));
 $('play').onclick=()=>{run=!run;$('play').textContent=run?'Pausa':'Avvia';tog('play',!run);if(cpu)cpu.postMessage({cmd:'run',on:run});};
 $('turbo').onclick=()=>{turbo=!turbo;tog('turbo',turbo);$('tb').hidden=!turbo;};
 $('spin').onclick=()=>{spin=!spin;tog('spin',spin);};
-$('dmb').onclick=()=>{showDM=!showDM;tog('dmb',showDM);legend();};
-$('lamb').onclick=()=>{lamOn=!lamOn;tog('lamb',lamOn);if(g)g.setLam(lamOn);addLog(last?last.t:0,lamOn?'Energia oscura attivata: a grande distanza l\'espansione accelera':'Energia oscura disattivata: solo la gravità decide se l\'universo ricollassa');};
-$('mT').onclick=()=>{mode=0;tog('mT',true);tog('mZ',false);legend();};
-$('mZ').onclick=()=>{mode=1;tog('mZ',true);tog('mT',false);legend();};
+function setMode(m){mode=m;tog('mR',m===2);tog('mT',m===0);tog('mZ',m===1);legend();}
+$('mR').onclick=()=>setMode(2);$('mT').onclick=()=>setMode(0);$('mZ').onclick=()=>setMode(1);
 $('spd').oninput=e=>{speed=+e.target.value;if(cpu)cpu.postMessage({cmd:'cap',v:Math.ceil(speed/2)});};
 $('cloud').oninput=e=>{cloud=+e.target.value/100;};
 $('center').onclick=()=>{if(sys.active)exitSystem();setFollow(-1);if(last){cam.t=[...last.cm];cam.D=Math.max(60,(last.R||100)*4);}};
 $('enter').onclick=()=>enterSystem(true);
 function legend(){const T=['#3c1459','#961f33','#dc5029','#ff963c','#ffd796','#fff8eb','#cddeff','#96b4ff'],Z=['#6e8cd6','#a0b0e0','#d6bf8c','#f58c45','#eb5029'];const css=a=>'linear-gradient(90deg,'+a.join(',')+')';
- $('legend').innerHTML=(mode===0?`<span>Freddo<i class="ramp" style="background:${css(T)}"></i>Caldissimo</span>`:`<span>Solo H e He<i class="ramp" style="background:${css(Z)}"></i>Ricco di metalli</span>`)+`<span><i class="dot" style="background:#fff3c4;box-shadow:0 0 6px #ffd27a"></i>Stella</span><span><i class="dot" style="background:#c7e0ff"></i>Nana bianca</span><span><i class="dot" style="background:#73fff2"></i>Stella di neutroni</span><span><i class="dot" style="background:#000;box-shadow:0 0 0 2px #ff9e40"></i>Buco nero</span>${showDM?'<span><i class="dot" style="background:#8c6bff"></i>Materia oscura</span>':''}`;}
+ const sw=(c,l)=>`<span><i class="dot" style="background:${c}"></i>${l}</span>`;
+ $('legend').innerHTML=mode===2?sw('#6b381f','Gas freddo e polveri')+sw('#4d6bd9','Gas neutro')+sw('#f2336b','Idrogeno ionizzato (Hα)')+sw('#33d9c7','Ossigeno ionizzato')+sw('#9e94ff','Gas caldissimo')+`<span>Stelle <i class="ramp" style="background:linear-gradient(90deg,#ff6b29,#ffe0b3,#fff8ee,#94b3ff)"></i> rosse → blu</span>`+sw('#408cff','Pianeta con acqua')+sw('#59d973','Vita')+`<span><i class="dot" style="background:#000;box-shadow:0 0 0 2px #ff9e40"></i>Buco nero</span>`:((mode===0?`<span>Freddo<i class="ramp" style="background:${css(T)}"></i>Caldissimo</span>`:`<span>Solo H e He<i class="ramp" style="background:${css(Z)}"></i>Ricco di metalli</span>`)+`<span><i class="dot" style="background:#fff3c4;box-shadow:0 0 6px #ffd27a"></i>Stella</span><span><i class="dot" style="background:#c7e0ff"></i>Nana bianca</span><span><i class="dot" style="background:#73fff2"></i>Stella di neutroni</span><span><i class="dot" style="background:#000;box-shadow:0 0 0 2px #ff9e40"></i>Buco nero</span>${showDM?'<span><i class="dot" style="background:#8c6bff"></i>Materia oscura</span>':''}`);}
 legend();
 // ================= cronaca e statistiche =================
 const FIRST=[['fus','Prima stella: il gas collassa, si scalda e fonde idrogeno in elio'],['c','Nasce il carbonio: l\'elio brucia nel nucleo di una stella'],['o','Nasce l\'ossigeno'],['h2o','Prima acqua: in una nube fredda H e O formano H₂O'],['org','Prime molecole organiche (C, H, N, O)'],['mg','Nascono i metalli (Mg, Si)'],['fe','Nasce il ferro: la stella è alla fine'],['sn','Prima supernova: ossigeno, silicio, ferro e i primi elementi pesanti del processo r vengono dispersi nello spazio'],['planet','Primo sistema planetario: polveri fredde attorno a una stella'],['hz','Primo pianeta nella zona abitabile: acqua liquida in superficie'],['life','Prima forma di vita: chimica organica in acqua liquida diventa autoreplicante'],['spread','La vita si diffonde su un pianeta vicino']];
@@ -979,7 +992,7 @@ const CHD={bb:'Nato nei primi minuti dopo il Big Bang (nucleosintesi primordiale
 const ptg=$('ptgrid');
 ptg.innerHTML=ELEM.slice(1).map(e=>`<button class="cell ${e.kind!=='nat'?e.kind:''}" id="el${e.Z}" style="grid-row:${e.r};grid-column:${e.c}" aria-pressed="false" title="${e.n}"><span class="tint" style="background:var(--ch-${e.ch})"></span><span class="z">${e.Z}</span><span class="sy">${e.s}</span><span class="lv" style="background:var(--ch-${e.ch})"></span></button>`).join('')+
  `<div style="grid-row:6;grid-column:3;font:10px var(--f-mono);color:var(--dim);display:flex;align-items:center;justify-content:center">57–71</div><div style="grid-row:7;grid-column:3;font:10px var(--f-mono);color:var(--dim);display:flex;align-items:center;justify-content:center">89–103</div>`;
-ptg.addEventListener('click',e=>{const b=e.target.closest('.cell');if(!b)return;selZ=+b.id.slice(2);renderPT(true);});
+ptg.addEventListener('click',e=>{const b=e.target.closest('.cell');if(!b)return;selZ=+b.id.slice(2);renderPT(true);applyFilter(selZ);});
 $('srcU').onclick=()=>{ptSrc='U';tog('srcU',1);tog('srcO',0);tog('srcS',0);renderPT(true);};
 $('srcO').onclick=()=>{if(!objBins)return;ptSrc='O';tog('srcU',0);tog('srcO',1);tog('srcS',0);renderPT(true);};
 $('srcS').onclick=()=>{ptSrc='S';tog('srcU',0);tog('srcO',0);tog('srcS',1);renderPT(true);};
@@ -1036,33 +1049,101 @@ function hostStar(arr,i){const N=arr.length/STRIDE,k0=i*STRIDE;if(arr[k0+7]>0)re
 function systemInfo(arr,si){const N=arr.length/STRIDE,k0=si*STRIDE;let L=0,pl=0,hz=0,life=0;
  for(let j=0;j<N;j++){const k=j*STRIDE;if(arr[k+16]!==0)continue;const d2=(arr[k]-arr[k0])**2+(arr[k+1]-arr[k0+1])**2+(arr[k+2]-arr[k0+2])**2;if(arr[k+7]>0&&d2<9)L+=arr[k+7];if(arr[k+8]>=1&&arr[k+12]>0&&d2<400){pl++;if(arr[k+8]>=2)hz++;if(arr[k+10]>0)life++;}}
  const Lrel=Math.max(0.01,L/LREF);const sp=SPEC.find(x=>Lrel>=x[1]);return{cls:sp[0],T:sp[3],L:Lrel,pl:Math.min(pl,9),hz,life};}
+let filterZ=0;
 async function selectAt(e){const r=cv.getBoundingClientRect(),sx=(e.clientX-r.left)*cv.width/r.width,sy=(e.clientY-r.top)*cv.height/r.height;const {vp}=viewProj();
- const arr=await pickData();if(!arr)return;const N=arr.length/STRIDE;
- let best=-1,bs=1e9;const R2=(34*dpr())**2;
- for(let i=0;i<N;i++){const k=i*STRIDE,q=project(vp,arr[k],arr[k+1],arr[k+2]);if(!q)continue;const d=(q[0]-sx)**2+(q[1]-sy)**2;if(d>R2)continue;
-  const ty=arr[k+16];if(ty>4.5||(ty===1&&!showDM))continue;const pr=ty===4?3:(ty===2||ty===3)?1.5:arr[k+7]>0?2:arr[k+8]>=1?1.8:0;const score=d/R2-pr;if(score<bs){bs=score;best=i;}}
- if(best<0){clearSel();return;}
- const k=best*STRIDE,P=[arr[k],arr[k+1],arr[k+2]],ty=arr[k+16];
- const plainGas=(ty===0&&arr[k+7]<=0&&arr[k+8]<1)||ty===1;
- if(cam.D>GAL_D||plainGas){const G=analyzeGalaxy(arr,P);if(G.center<0){clearSel();return;}sel={kind:'galaxy',G};setFollow(G.center,'galassia');cam.ft=[...G.c];flyTo(Math.max(12,G.R*3.2));renderSel();return;}
- if(ty===0&&(arr[k+7]>0||arr[k+8]>=1)){const si=hostStar(arr,best);if(si>=0){const info=systemInfo(arr,si);sel={kind:'system',si,info,planet:arr[k+8]>=1&&arr[k+7]<=0?best:-1};setFollow(si,'stella');const ks=si*STRIDE;cam.ft=[arr[ks],arr[ks+1],arr[ks+2]];flyTo(Math.min(cam.D,6));renderSel();return;}}
- const kind=kindOf(arr,best);sel={kind:'object',i:best,label:kind,mass:arr[k+17],temp:arr[k+4]};setFollow(best,kind);cam.ft=P;flyTo(Math.min(cam.D,8));renderSel();}
-function clearSel(){sel=null;$('selcard').hidden=true;$('selcard').__h='';setFollow(-1);}
+ if(filterZ)pickCache=null;const arr=await pickData();if(!arr)return;const N=arr.length/STRIDE;
+ let best=-1,bs=1e9;const R2=(filterZ?44:36)**2*dpr()*dpr();
+ for(let i=0;i<N;i++){const k=i*STRIDE,q=project(vp,arr[k],arr[k+1],arr[k+2]);if(!q)continue;const d=(q[0]-sx)**2+(q[1]-sy)**2;if(d>R2)continue;const ty=arr[k+16];if(ty>4.5)continue;
+  if(filterZ){if(!(arr[k+19]>filterTh))continue;if(d<bs){bs=d;best=i;}continue;}
+  const pr=ty===4?3:arr[k+7]>0?2.6:arr[k+8]>=1?2.3:(ty===2||ty===3)?2:ty===1?-3:-2;const score=d/R2-pr;if(score<bs){bs=score;best=i;}}
+ if(best<0)return;
+ if(filterZ){clearFilter();selectObject(arr,best);return;}
+ const k=best*STRIDE,ty=arr[k+16],plain=(ty===0&&arr[k+7]<=0&&arr[k+8]<1)||ty===1;
+ if((cam.D>GAL_D&&!(sel&&sel.kind==='galaxy'))||plain){const G=analyzeGalaxy(arr,[arr[k],arr[k+1],arr[k+2]]);if(G.center<0)return;selectGalaxy(G);return;}
+ selectObject(arr,best);}
+function selectGalaxy(G){sel={kind:'galaxy',G};setFollow(G.center,'galassia');cam.ft=[...G.c];folSample(G.c);const f=1/Math.tan(cam.fov/2);flyTo(Math.max(6,3*G.R*f));probe.on=false;renderSel();}
+function selectObject(arr,i){const k=i*STRIDE,ty=arr[k+16];let kind=ty===4?'bh':ty===2?'wd':ty===3?'ns':ty===1?'dm':arr[k+7]>0?'star':arr[k+8]>=1||arr[k+10]>0?'planet':'gas';
+ const info={teq:arr[k+12],Z:arr[k+13],wat:arr[k+14],org:arr[k+15],bio:arr[k+10],ring:arr[k+8],L:arr[k+7],mass:arr[k+17]};
+ let host=-1,pl=0;if(kind==='star'){const I=systemInfo(arr,i);info.sys=I;pl=I.pl;}if(kind==='planet'){host=hostStar(arr,i);}
+ sel={kind,i,info,host,pl};setFollow(i,{bh:'buco nero',wd:'nana bianca',ns:'stella di neutroni',dm:'materia oscura',star:'stella',planet:'pianeta',gas:'gas'}[kind]);
+ cam.ft=[arr[k],arr[k+1],arr[k+2]];folSample(cam.ft);const D=kind==='star'||kind==='planet'?2.2:3;flyTo(D);probe.on=true;probe.D0=D;probe.t0=performance.now();probe.kind=kind;probe.flares=[];renderSel();}
+function clearSel(){sel=null;probe.on=false;$('selcard').hidden=true;$('selcard').__h='';setFollow(-1);}
 let chipOpen=false;
-function chip(title,meta,btns){return `<div class="chip"><span class="ct">${title}</span>${btns.map(b=>`<button data-a="${b[0]}">${b[1]}</button>`).join('')}<button class="ic" data-a="info" aria-label="Dettagli">i</button><button class="ic" data-a="x" aria-label="Chiudi">×</button></div><div class="chipmore"${chipOpen?'':' hidden'}>${meta}</div>`;}
-function setChip(el,html,handler){if(el.__h!==html){el.__h=html;el.innerHTML=html;}el.onclick=e=>{const b=e.target.closest('button');if(!b)return;const a=b.dataset.a;if(a==='info'){chipOpen=!chipOpen;el.querySelector('.chipmore').hidden=!chipOpen;el.__h='';return;}handler(a);};}
-function renderSel(){const el=$('selcard');if(!sel){el.hidden=true;return;}let h='';
- if(sel.kind==='galaxy'){const G=sel.G;h=chip(`${G.name} · ${G.stars} stelle`,`diametro ~${Math.round(G.R*2)} unità · ${G.planets} pianeti${G.habit?' ('+G.habit+' abitabili)':''}${G.life?' · vita su '+G.life:''} · ${G.bh} buchi neri${G.bhMax>0?' (il maggiore '+G.bhMax.toLocaleString('it-IT',{maximumFractionDigits:1})+' nubi)':''} · ${G.wd} nane bianche · ${G.ns} stelle di neutroni. Tocca una stella per il suo sistema.`,[['go','Avvicinati'],['gas','Dentro il gas']]);}
- else if(sel.kind==='system'){const I=sel.info;h=chip(`Stella ${I.cls} · ${I.pl} ${I.pl===1?'pianeta':'pianeti'}${I.life?' · vita':''}`,`~${I.T.toLocaleString('it-IT')} K · luminosità ${I.L.toLocaleString('it-IT',{maximumSignificantDigits:2})}×${I.hz?' · '+I.hz+' in zona abitabile':''}`,[['go','Entra'],['core','Dentro']]);}
- else{const L=sel.label;h=chip(`${L.charAt(0).toUpperCase()+L.slice(1)}${L==='buco nero'?' · '+(sel.mass/(g?g.mGas:1)).toLocaleString('it-IT',{maximumFractionDigits:1})+' nubi':''}`,{'buco nero':'Inghiotte il gas che gli passa troppo vicino e cresce.','nana bianca':'Il nucleo spento di una stella come il Sole. Può esplodere come supernova Ia.','stella di neutroni':'Il nucleo collassato di una supernova. Fondendosi produce oro e platino.'}[L]||'',[['go','Avvicinati']]);}
- el.hidden=sys.active||micro.active;
+function chip(title,meta,btns){return `<div class="chip"><span class="ct">${title}</span>${btns.map(b=>`<button data-a="${b[0]}">${b[1]}</button>`).join('')}${meta?'<button class="ic" data-a="info" aria-label="Dettagli">i</button>':''}<button data-a="x">Esci</button></div><div class="chipmore"${chipOpen&&meta?'':' hidden'}>${meta}</div>`;}
+function setChip(el,html,handler){if(el.__h!==html){el.__h=html;el.innerHTML=html;}el.onclick=e=>{const b=e.target.closest('button');if(!b)return;const a=b.dataset.a;if(a==='info'){chipOpen=!chipOpen;const m=el.querySelector('.chipmore');if(m)m.hidden=!chipOpen;el.__h='';return;}handler(a);};}
+function starPhase(st){if(!st)return'';if(st.snc>200)return'esplosa come supernova';if(st.L<=0)return st.A0<0.35?'si sta spegnendo':'protostella in contrazione';return st.A0<0.35?(st.u>=0.006?'gigante: brucia elio':'gigante rossa'):'fusione dell\'idrogeno';}
+function renderSel(){const el=$('selcard');
+ if(filterZ){el.hidden=false;const e=ELEM[filterZ];setChip(el,chip(`Dove c'è più ${e.n.toLowerCase()} · tocca un punto`,'',[]),a=>{if(a==='x')clearFilter();});return;}
+ if(!sel){el.hidden=true;return;}let h='';const st=probe.st;
+ if(sel.kind==='galaxy'){const G=sel.G;h=chip(`${G.name} · ${G.stars} stelle`,`diametro ~${Math.round(G.R*2)} unità · ${G.planets} pianeti${G.habit?' ('+G.habit+' abitabili)':''}${G.life?' · vita su '+G.life:''} · ${G.bh} buchi neri · ${G.wd} nane bianche · ${G.ns} stelle di neutroni. Tocca una stella o un pianeta.`,[]);}
+ else if(sel.kind==='star'){const I=sel.info.sys||{cls:'?',T:0,L:0,pl:0};h=chip(`Stella ${I.cls} · ${starPhase(st)||'…'}`,`~${I.T.toLocaleString('it-IT')} K in superficie · luminosità ${I.L.toLocaleString('it-IT',{maximumSignificantDigits:2})}× · ${I.pl} ${I.pl===1?'pianeta':'pianeti'}${I.life?' · vita':''}`,I.pl?[['sys','Pianeti']]:[]);}
+ else if(sel.kind==='planet'){const t=planetType(sel.info);h=chip(`${PTYPE[t][0]} · ${Math.round(sel.info.teq-273)} °C${sel.info.bio>0?' · vita':''}`,`metallicità ${(sel.info.Z*100).toFixed(2)}%${sel.info.bio>0?' · biomassa '+(sel.info.bio*100).toFixed(0)+'%':''}`,sel.host>=0?[['sys','Sistema']]:[]);}
+ else{const L={bh:'Buco nero',wd:'Nana bianca',ns:'Stella di neutroni',dm:'Materia oscura',gas:'Nube di gas'}[sel.kind];h=chip(L+(sel.kind==='bh'&&st?' · '+(st.mass/(g?g.mGas:1)).toLocaleString('it-IT',{maximumFractionDigits:1})+' nubi':''),{bh:'Inghiotte il gas che gli passa troppo vicino. Il disco luminoso è il gas che sta cadendo.',wd:'Il nucleo spento di una stella come il Sole. Può esplodere come supernova Ia.',ns:'Il nucleo collassato di una supernova: ruota velocissimo ed emette fasci di radiazione.',gas:'Gas interstellare.'}[sel.kind]||'',[]);}
+ el.hidden=sys.active;
  setChip(el,h,a=>{if(a==='x'){clearSel();return;}
-  if(a==='go'){if(sel.kind==='galaxy')flyTo(Math.max(6,sel.G.R*1.3));else if(sel.kind==='system'){pendingPlanet=sel.planet;flyTo(ENTER_D*0.6);}else flyTo(3);}
-  if(a==='core'&&sel.kind==='system')enterMicro('star',sel.si);
-  if(a==='gas'&&sel.kind==='galaxy')gasInGalaxy(sel.G);});}
+  if(a==='sys'){if(sel.kind==='star'){setFollow(sel.i,'stella');flyTo(ENTER_D*0.6);probe.on=false;}else if(sel.kind==='planet'&&sel.host>=0){pendingPlanet=sel.i;setFollow(sel.host,'stella');flyTo(ENTER_D*0.6);probe.on=false;}}});}
+function planetType(p){if(p.teq>1000)return'lava';if(p.teq>373)return'hot';if(p.teq>=273)return p.wat>3e-4?'ocean':'desert';if(p.Z>0.02&&p.teq<170)return'giant';if(p.teq<120)return'ice';return'cold';}
+// ================= sonda: vista ravvicinata dall'esterno =================
+const probe={on:false,kind:'',D0:3,t0:0,st:null,flares:[],gran:null};
+function probeState(){const i=cam.follow;if(i<0)return null;
+ if(g){if(!lastOne||lastOne.i!==i)return probe.st;const a=lastOne.a;return{A0:a[4],A1:a[5],L:a[11],ty:a[16],mass:a[17],acc:a[18],bio:a[20],hue:a[21],teq:a[22],snc:a[23],wat:a[24],org:a[25],u:a[31],Z:Math.max(0,1-a[4]-a[5])};}
+ if(cpuSnap&&cpuSnap.comp){const b=cpuSnap.buf,k=i*20,c=cpuSnap.comp;return{A0:c[0],A1:c[1],L:b[k+7],ty:b[k+16],mass:0,acc:0,bio:b[k+10],teq:b[k+12],snc:0,wat:b[k+14],org:b[k+15],u:b[k+4],Z:b[k+5]};}
+ return probe.st;}
+function granTex(){if(probe.gran)return probe.gran;const S=256,c=document.createElement('canvas');c.width=c.height=S;const x=c.getContext('2d'),im=x.createImageData(S,S);const L=new Float32Array(33*33);for(let k=0;k<L.length;k++)L[k]=Math.random();
+ const vn=(u,v,f)=>{const gx=u*f,gy=v*f,ix=Math.floor(gx),iy=Math.floor(gy),fx=gx-ix,fy=gy-iy,w=f;const Lk=(a,b)=>L[((b%w+w)%w)*33+((a%w+w)%w)];const sx=fx*fx*(3-2*fx),sy=fy*fy*(3-2*fy);return(Lk(ix,iy)*(1-sx)+Lk(ix+1,iy)*sx)*(1-sy)+(Lk(ix,iy+1)*(1-sx)+Lk(ix+1,iy+1)*sx)*sy;};
+ for(let j=0;j<S;j++)for(let i=0;i<S;i++){const u=i/S,v=j/S;const n=vn(u,v,8)*0.5+vn(u,v,16)*0.3+vn(u,v,32)*0.2;const cell=Math.pow(Math.abs(Math.sin(n*14)),0.6);const val=255*(0.35+0.65*cell*n);const o=(j*S+i)*4;im.data[o]=im.data[o+1]=im.data[o+2]=val;im.data[o+3]=255;}
+ x.putImageData(im,0,0);return probe.gran=c;}
+function hexRgb(h){const n=parseInt(h.slice(1),16);return[(n>>16)&255,(n>>8)&255,n&255];}
+function drawProbe(now){const c=$('probec'),x=c.getContext('2d'),W=c.width,H=c.height;x.clearRect(0,0,W,H);
+ if(!probe.on||!sel||sys.active||filterZ||cam.follow<0)return;const st=probeState();if(st)probe.st=st;if(!probe.st)return;const S=probe.st,d=dpr(),t=(now-probe.t0)/1000;
+ const scale=Math.max(0.12,Math.min(3,probe.D0/cam.D));const R0=Math.min(W,H)/6*scale;const fade=Math.min(1,t/0.6)*Math.min(1,(scale-0.12)/0.25);if(fade<=0.01)return;x.globalAlpha=fade;
+ const cx=W/2,cy=H/2,k=probe.kind;
+ if(k==='star'){const Lrel=Math.max(0.05,(S.L||0)/LREF);const sp=SPEC.find(q=>Lrel>=q[1]);let col=hexRgb(sp[2]);let R=R0*(0.75+0.12*Math.log10(1+Lrel));
+  const giant=S.A0<0.35;if(giant){R*=1.6;col=[255,150,90];}if(S.L<=0){col=[200,90,60];}
+  if(S.u>=0.006)R*=1+0.04*Math.sin(t*2.2);
+  if(S.snc>200){const e=(300-S.snc)/100;const gr=x.createRadialGradient(cx,cy,0,cx,cy,R*(1+e*4));gr.addColorStop(0,'rgba(255,255,240,.95)');gr.addColorStop(0.4,'rgba(255,190,120,.6)');gr.addColorStop(1,'rgba(255,120,60,0)');x.fillStyle=gr;x.beginPath();x.arc(cx,cy,R*(1+e*4),0,6.283);x.fill();x.globalAlpha=1;return;}
+  const co=x.createRadialGradient(cx,cy,R*0.9,cx,cy,R*2.6);co.addColorStop(0,`rgba(${col},${0.45})`);co.addColorStop(1,`rgba(${col},0)`);x.fillStyle=co;x.beginPath();x.arc(cx,cy,R*2.6,0,6.283);x.fill();
+  // protuberanze: più frequenti nelle stelle luminose
+  if(Math.random()<Math.min(0.08,0.01+Lrel*0.004)&&probe.flares.length<6)probe.flares.push({a:Math.random()*6.283,h:0.15+Math.random()*0.35,t0:t,life:2+Math.random()*2,w:0.15+Math.random()*0.2});
+  probe.flares=probe.flares.filter(f=>t-f.t0<f.life);
+  for(const f of probe.flares){const p=(t-f.t0)/f.life,a=Math.sin(p*Math.PI);const a1=f.a-f.w,a2=f.a+f.w,hh=R*(1+f.h*a);x.strokeStyle=`rgba(255,${120+col[1]*0.3|0},80,${0.7*a})`;x.lineWidth=3*d;x.beginPath();x.moveTo(cx+Math.cos(a1)*R,cy+Math.sin(a1)*R);x.quadraticCurveTo(cx+Math.cos(f.a)*hh*1.25,cy+Math.sin(f.a)*hh*1.25,cx+Math.cos(a2)*R,cy+Math.sin(a2)*R);x.stroke();}
+  x.save();x.beginPath();x.arc(cx,cy,R,0,6.283);x.clip();
+  const body=x.createRadialGradient(cx-R*0.15,cy-R*0.15,0,cx,cy,R);body.addColorStop(0,`rgb(${Math.min(255,col[0]+40)},${Math.min(255,col[1]+40)},${Math.min(255,col[2]+40)})`);body.addColorStop(0.7,`rgb(${col})`);body.addColorStop(1,`rgb(${col[0]*0.55|0},${col[1]*0.4|0},${col[2]*0.3|0})`);x.fillStyle=body;x.fillRect(cx-R,cy-R,2*R,2*R);
+  const gt=granTex(),off=(t*6)%256;x.globalCompositeOperation='overlay';x.globalAlpha=fade*0.45;x.drawImage(gt,off,0,256-off,256,cx-R,cy-R,2*R*(256-off)/256,2*R);x.drawImage(gt,0,0,off,256,cx-R+2*R*(256-off)/256,cy-R,2*R*off/256,2*R);
+  x.globalCompositeOperation='source-over';x.globalAlpha=fade;
+  const ld=x.createRadialGradient(cx,cy,R*0.55,cx,cy,R);ld.addColorStop(0,'rgba(0,0,0,0)');ld.addColorStop(1,'rgba(20,5,0,.55)');x.fillStyle=ld;x.fillRect(cx-R,cy-R,2*R,2*R);x.restore();}
+ else if(k==='planet'){const p={teq:S.teq,wat:S.wat,Z:S.Z};const type=planetType(p);const R=R0*0.85;const tex=noiseTex(cam.follow,type,S.bio>0),rot=(now/60)%256;
+  x.save();x.beginPath();x.arc(cx,cy,R,0,6.283);x.clip();const sx=rot,w1=Math.min(128,256-sx);x.drawImage(tex,sx,0,w1,128,cx-R,cy-R,2*R*w1/128,2*R);if(w1<128)x.drawImage(tex,0,0,128-w1,128,cx-R+2*R*w1/128,cy-R,2*R*(128-w1)/128,2*R);
+  const sh=x.createRadialGradient(cx-R*0.45,cy-R*0.3,R*0.1,cx,cy,R*1.15);sh.addColorStop(0,'rgba(0,0,0,0)');sh.addColorStop(0.55,'rgba(0,0,0,0.12)');sh.addColorStop(1,'rgba(0,0,0,0.92)');x.fillStyle=sh;x.fillRect(cx-R,cy-R,2*R,2*R);x.restore();
+  if(type==='ocean'||type==='desert'||type==='giant'){x.strokeStyle=type==='giant'?'rgba(255,220,170,.35)':'rgba(120,180,255,.55)';x.lineWidth=3*d;x.beginPath();x.arc(cx,cy,R+1.5*d,Math.PI*0.6,Math.PI*1.45);x.stroke();}}
+ else if(k==='bh'){const R=R0*0.42,acc=Math.min(1,0.25+Math.log10(1+(S.acc||0)/(g?g.mGas:1)*2000)*0.25);const tilt=0.28;
+  const disk=(front)=>{x.save();x.beginPath();if(front)x.rect(0,cy,W,H);else x.rect(0,0,W,cy);x.clip();for(let r=R*2.6;r>R*1.15;r-=R*0.08){const q=(r-R*1.15)/(R*1.45);const h=255,gcol=200-120*q,bcol=140-120*q;x.strokeStyle=`rgba(${h},${gcol|0},${Math.max(0,bcol)|0},${acc*(0.55-0.4*q)})`;x.lineWidth=R*0.09;x.beginPath();x.ellipse(cx,cy,r,r*tilt,0,0,6.283);x.stroke();}x.restore();};
+  disk(false);x.strokeStyle=`rgba(255,200,140,${acc*0.8})`;x.lineWidth=R*0.12;x.beginPath();x.ellipse(cx,cy-R*0.05,R*1.25,R*1.05,0,Math.PI,2*Math.PI);x.stroke();
+  x.fillStyle='#000';x.beginPath();x.arc(cx,cy,R,0,6.283);x.fill();x.strokeStyle=`rgba(255,230,190,${0.5+acc*0.4})`;x.lineWidth=1.5*d;x.beginPath();x.arc(cx,cy,R*1.03,0,6.283);x.stroke();disk(true);
+  if(acc>0.7){for(const sgn of[-1,1]){const jg=x.createLinearGradient(cx,cy,cx,cy+sgn*R*5);jg.addColorStop(0,'rgba(160,200,255,.5)');jg.addColorStop(1,'rgba(160,200,255,0)');x.fillStyle=jg;x.beginPath();x.moveTo(cx-R*0.12,cy);x.lineTo(cx+R*0.12,cy);x.lineTo(cx+R*0.35,cy+sgn*R*5);x.lineTo(cx-R*0.35,cy+sgn*R*5);x.closePath();x.fill();}}}
+ else if(k==='wd'){const R=R0*0.22;const neb=x.createRadialGradient(cx,cy,R*2,cx,cy,R*7);neb.addColorStop(0,'rgba(90,220,200,0)');neb.addColorStop(0.6,'rgba(90,220,200,.18)');neb.addColorStop(0.85,'rgba(255,120,170,.14)');neb.addColorStop(1,'rgba(255,120,170,0)');x.fillStyle=neb;x.beginPath();x.arc(cx,cy,R*7,0,6.283);x.fill();
+  const gw=x.createRadialGradient(cx,cy,0,cx,cy,R*2.2);gw.addColorStop(0,'rgba(235,245,255,1)');gw.addColorStop(0.45,'rgba(200,220,255,.9)');gw.addColorStop(1,'rgba(150,180,255,0)');x.fillStyle=gw;x.beginPath();x.arc(cx,cy,R*2.2,0,6.283);x.fill();}
+ else if(k==='ns'){const R=R0*0.1,a=t*6;for(const s2 of[0,Math.PI]){const g2=x.createLinearGradient(cx,cy,cx+Math.cos(a+s2)*R*30,cy+Math.sin(a+s2)*R*30);g2.addColorStop(0,'rgba(140,255,240,.55)');g2.addColorStop(1,'rgba(140,255,240,0)');x.fillStyle=g2;x.beginPath();x.moveTo(cx,cy);x.lineTo(cx+Math.cos(a+s2-0.08)*R*30,cy+Math.sin(a+s2-0.08)*R*30);x.lineTo(cx+Math.cos(a+s2+0.08)*R*30,cy+Math.sin(a+s2+0.08)*R*30);x.closePath();x.fill();}
+  const gw=x.createRadialGradient(cx,cy,0,cx,cy,R*3);gw.addColorStop(0,'rgba(230,255,255,1)');gw.addColorStop(0.4,'rgba(120,255,240,.8)');gw.addColorStop(1,'rgba(120,255,240,0)');x.fillStyle=gw;x.beginPath();x.arc(cx,cy,R*3,0,6.283);x.fill();}
+ else if(k==='gas'){const hot=S.u>0.004;for(let q=0;q<5;q++){const a=q*1.26+t*0.05,rr=R0*(0.5+0.25*Math.sin(t*0.3+q));const gx=cx+Math.cos(a)*R0*0.35,gy=cy+Math.sin(a)*R0*0.3;const gr=x.createRadialGradient(gx,gy,0,gx,gy,rr);gr.addColorStop(0,hot?'rgba(255,150,90,.25)':'rgba(110,140,230,.22)');gr.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=gr;x.beginPath();x.arc(gx,gy,rr,0,6.283);x.fill();}}
+ x.globalAlpha=1;}
+let probeT=0;function probeTick(now){drawProbe(now);if(sel&&sel.kind!=='galaxy'&&now-probeT>800){probeT=now;renderSel();}}
+function elemWeights(Z){const e=ELEM[Z],x=SOLAR.x,w=new Array(10).fill(0);if(Z===1)w[0]=1;else if(Z===2)w[1]=1;else if(Z<=5)w[9]=x[Z];else if(Z===6)w[2]=1;else if(Z===7)w[3]=1;else if(Z===8)w[4]=1;else if(Z===9)w[3]=x[9]/x[7];
+ else if(Z<=22)w[5]=x[Z]/SOLAR.alpha;else if(Z<=30)w[6]=x[Z]/SOLAR.fePeak;else{w[7]=e.sf*x[Z];w[8]=(1-e.sf)*x[Z];}return w;}
+let filterTh=0;
+async function applyFilter(Z){const e=ELEM[Z];if(!g){toast('Questa funzione richiede la versione GPU');return;}if(e.kind!=='nat'){toast(`${e.n}: non presente in natura nella simulazione`);return;}
+ if(sys.active)exitSystem();const w=elemWeights(Z);w.forEach((v,k)=>g.setU('fw'+k,v));const avg=Math.max(1e-30,elementMasses(universeBins)[Z]);
+ filterZ=Z;run=false;$('play').textContent='Avvia';tog('play',true);$('stage').scrollIntoView({behavior:'smooth',block:'center'});
+ g.setU('fon',1);g.prep(mode);await g.done();pickCache=null;let a=null;for(let t=0;t<20&&!a;t++){a=await pickData();if(!a)await new Promise(r=>setTimeout(r,50));}
+ const v=[];if(a)for(let i=0;i<a.length/STRIDE;i++){const x=a[i*STRIDE+19];if(x>0)v.push(x);}
+ if(!v.length){toast(`${e.n} non si è ancora formato: lascia evolvere l'universo`);clearFilter();return;}
+ v.sort((p,q)=>p-q);const hi=v[v.length-1],lo=v[0];filterTh=hi>lo*1.02?v[Math.floor(v.length*0.9)]*0.999:lo*0.999;const n=v.filter(x=>x>filterTh).length;
+ toast(`${n.toLocaleString('it-IT')} punti con più ${e.n.toLowerCase()}: toccane uno`);
+ renderSel();}
+function clearFilter(){filterZ=0;filterTh=0;if(g){g.setU('fon',0);g.prep(mode);}pickCache=null;run=true;$('play').textContent='Pausa';tog('play',false);renderSel();}
 const fol={p:null,t:0,v:[0,0,0],last:0};
 function folSample(p){const now=performance.now();if(fol.p&&now>fol.t){const dt=(now-fol.t)/1000;for(let k=0;k<3;k++){const vm=(p[k]-fol.p[k])/dt;fol.v[k]+=(vm-fol.v[k])*0.25;}}else fol.v=[0,0,0];fol.p=[...p];fol.t=now;}
-function folApply(now){if(cam.follow<0||!fol.p)return;const dt=Math.min(0.05,(now-(fol.last||now))/1000);fol.last=now;const ahead=0;const tau=sel&&sel.kind==='galaxy'?1.6:1.1;const a=1-Math.exp(-dt/tau);for(let k=0;k<3;k++){const tgt=fol.p[k]+fol.v[k]*ahead;cam.t[k]+=(tgt-cam.t[k])*a;}}
+function folApply(now){if(cam.follow<0||!fol.p)return;const dt=Math.min(0.05,(now-(fol.last||now))/1000);fol.last=now;const ahead=Math.min(0.3,(now-fol.t)/1000);const tau=sel&&sel.kind==='galaxy'?0.8:0.3;const a=1-Math.exp(-dt/tau);for(let k=0;k<3;k++){const tgt=fol.p[k]+fol.v[k]*ahead;cam.t[k]+=(tgt-cam.t[k])*a;}}
 function setFollow(i,kind){if(i!==cam.follow){fol.p=null;fol.v=[0,0,0];fol.last=0;}cam.follow=i;followKind=i>=0?(kind||followKind):'';if(i<0){objBins=null;$('srcO').disabled=true;if(ptSrc==='O'){ptSrc='U';tog('srcU',1);tog('srcO',0);}}if(cpu)cpu.postMessage({cmd:'sel',i});}
 function binsFromComp(c){return{H:c[0],He:c[1],C:c[2],N:c[3],O:c[4],Mg:c[5],Fe:c[6],s:c[8],r:c[9],L:c[10]};}
 function onObjComp(c,isEst){if(!c||followKind==='galassia')return;let b;if(isEst){const f=c[6]/SOLAR.fePeak;b={H:c[0],He:c[1],C:c[2],N:c[3],O:c[4],Mg:c[5],Fe:c[6],s:0.4*f,r:0.6*f,L:0.2*(c[2]+c[3]+c[4])/SOLAR.cno,est:true};}else b=binsFromComp(c);
@@ -1087,14 +1168,14 @@ async function gpuFrame(now){if(g.lost)return;
  const galaxyVisible=(!sys.active||sys.alpha<1)&&!(micro.active&&(performance.now()-micro.t0)>500);
  const doRender=galaxyVisible&&(!turbo||now-lastRender>400);
  if(doRender){lastRender=now;g.prep(mode);const {vp,f}=viewProj();const d=dpr(),dens=Math.sqrt(16384/g.N);
-  g.render(new Float32Array(vp),{dm:showDM,px:(cv.clientWidth<600?1.7:1.25)*d,cloudA:cloud*0.3*Math.cbrt(16384/g.N),cloudK:2.4*f,cloudMax:60*d,ptA:Math.max(0.3,Math.min(0.95,0.95*dens))});}
+  g.render(new Float32Array(vp),{fon:!!filterZ,fth:filterTh,real:mode===2,dm:showDM,px:(cv.clientWidth<600?1.7:1.25)*d,cloudA:cloud*0.3*Math.cbrt(16384/g.N),cloudK:2.4*f,cloudMax:60*d,ptA:Math.max(0.3,Math.min(0.95,0.95*dens))});}
  else if(sys.active&&now-lastRender>1000){lastRender=now;g.prep(mode);}
  await g.done();const dt=performance.now()-t0;
  if(n>0){msStep=msStep?msStep*0.85+(dt/n)*0.15:dt/n;const tgt=turbo?140:24;stepsPF=Math.max(1,Math.min(400,Math.round(stepsPF*Math.min(1.5,Math.max(0.6,tgt/Math.max(1,dt))))));}
  if(now-lastStat>300){lastStat=now;g.readStats().then(s=>{if(s)onStats(s);});}
  if(sel&&sel.kind==='galaxy'&&now-(fol.gT||0)>1200){fol.gT=now;pickData().then(arr=>{if(arr&&sel&&sel.kind==='galaxy'){const G=analyzeGalaxy(arr,sel.G.c);if(G.center>=0){sel.G=G;folSample(G.c);}}});}
  if(cam.follow>=0&&now-lastFol>150){lastFol=now;g.readOne(cam.follow).then(a=>{if(a){lastOne={i:cam.follow,a};cam.ft=[a[0],a[1],a[2]];if(!(sel&&sel.kind==='galaxy'))folSample(cam.ft);const ty=a[16];if(ty===4)followExtra=' · '+(a[17]/g.mGas).toLocaleString('it-IT',{maximumFractionDigits:1})+' nubi di massa';else followExtra='';if(ty>4.5){toast('Questo oggetto è stato inghiottito da un buco nero');setFollow(-1);return;}onObjComp(Array.from(a.slice(4,16)));}});}
- sysTick(now);microTick(now);hudTick();
+ sysTick(now);microTick(now);probeTick(now);hudTick();
  $('perf').textContent=`GPU: ${gpuName||'WebGPU'} · ${g.N.toLocaleString('it-IT')} particelle · ${msStep.toFixed(1)} ms per passo · ${n} passi per fotogramma`;
  requestAnimationFrame(gpuFrame);}
 // ================= vista del sistema planetario =================
@@ -1106,7 +1187,7 @@ function hsh(i,k){let v=(i*2654435761+k*40503)>>>0;v^=v>>>15;v=Math.imul(v,22468
 async function enterSystem(manual){if(sys.building||sys.active)return;sys.building=true;const arr=await pickData();sys.building=false;if(!arr)return;
  if(!buildSystem(arr,true)){if(manual)toast('Qui non c\'è una stella accesa: segui un punto luminoso o un pianeta');cam.D=Math.max(cam.D,ENTER_D*1.5);sys.cool=performance.now()+2500;return;}
  sys.active=true;sys.alpha=0;sys.focus=-1;sys.t0=performance.now();sys.zoom=sys.fit;$('sysc').hidden=false;$('era').textContent='Sistema planetario';addLog(last?last.t:0,'Ingresso nel sistema della stella #'+sys.center);}
-function exitSystem(){sys.active=false;sel=null;sys.focus=-1;$('sysc').hidden=true;$('syspanel').hidden=true;cam.D=Math.max(cam.D,ENTER_D*3);sys.cool=performance.now()+1500;}
+function exitSystem(){sys.active=false;if(sel&&(sel.kind==='star'||sel.kind==='planet')){probe.on=true;probe.D0=2.2;cam.fly={D:2.2};}sys.focus=-1;$('sysc').hidden=true;$('syspanel').hidden=true;cam.D=Math.max(cam.D,ENTER_D*3);sys.cool=performance.now()+1500;}
 function buildSystem(arr,first){const N=arr.length/STRIDE;let c=cam.t;if(!first&&sys.star)c=sys.star.pos;
  let best=-1,bl=0;for(let i=0;i<N;i++){const k=i*STRIDE,L=arr[k+7];if(L<=0)continue;const d2=(arr[k]-c[0])**2+(arr[k+1]-c[1])**2+(arr[k+2]-c[2])**2;if(d2>25)continue;if(L>bl||(!first&&i===sys.center)){bl=L;best=i;if(!first&&i===sys.center)break;}}
  if(best<0){if(!first&&sys.star){sys.gone=true;}return false;}
@@ -1169,12 +1250,11 @@ function drawSystem(now){const c=$('sysc'),x=c.getContext('2d'),W=c.width,H=c.he
 function sysPanel(){const el=$('syspanel');if(!sys.active||micro.active){el.hidden=true;return;}el.hidden=false;const st=sys.star;let html;
  if(sys.focus>=0&&sys.planets[sys.focus]){const p=sys.planets[sys.focus];
   const water=p.type==='ocean'?'acqua liquida':p.type==='desert'?'temperata ma secca':p.teq<273?'acqua ghiacciata':'troppo caldo per l\'acqua';
-  html=chip(`${PTYPE[p.type][0]}${p.life?' · vita':''}`,`${Math.round(p.teq-273)} °C · ${water} · orbita ${p.a.toLocaleString('it-IT',{maximumSignificantDigits:3})} UA eq. · anno ${p.P.toLocaleString('it-IT',{maximumSignificantDigits:3})} · metallicità ${(p.Z*100).toFixed(2)}%${p.life?' · biomassa '+(p.bio*100).toFixed(0)+'%':''}`,[['back','‹ Sistema'],['atm','Dentro']]);}
- else{const n=sys.planets.length;html=chip(`Stella ${st.cls} · ${n} ${n===1?'pianeta':'pianeti'}${sys.gone?' · spenta':''}`,`~${st.T.toLocaleString('it-IT')} K · luminosità ${st.L.toLocaleString('it-IT',{maximumSignificantDigits:2})}× · massa ~${st.M.toLocaleString('it-IT',{maximumSignificantDigits:2})}× · fascia azzurra = zona abitabile · orbite ricostruite con Keplero, dimensioni non in scala. Tocca la stella o un pianeta.`,[['core','Dentro la stella']]);}
+  html=chip(`${PTYPE[p.type][0]}${p.life?' · vita':''}`,`${Math.round(p.teq-273)} °C · ${water} · orbita ${p.a.toLocaleString('it-IT',{maximumSignificantDigits:3})} UA eq. · anno ${p.P.toLocaleString('it-IT',{maximumSignificantDigits:3})} · metallicità ${(p.Z*100).toFixed(2)}%${p.life?' · biomassa '+(p.bio*100).toFixed(0)+'%':''}`,[['back','‹ Sistema']]);}
+ else{const n=sys.planets.length;html=chip(`Stella ${st.cls} · ${n} ${n===1?'pianeta':'pianeti'}${sys.gone?' · spenta':''}`,`~${st.T.toLocaleString('it-IT')} K · luminosità ${st.L.toLocaleString('it-IT',{maximumSignificantDigits:2})}× · massa ~${st.M.toLocaleString('it-IT',{maximumSignificantDigits:2})}× · fascia azzurra = zona abitabile · orbite ricostruite con Keplero, dimensioni non in scala. Tocca la stella o un pianeta.`,[]);}
  setChip(el,html,a=>{if(a==='x'){exitSystem();return;}if(a==='back'){sys.focus=-1;setFollow(sys.center,'stella');sysPanel();}if(a==='atm'&&sys.focus>=0)enterMicro('planet',sys.planets[sys.focus].i);if(a==='core')enterMicro('star',sys.center);});}
 function sysClick(e){if(!sys.pos)return;const r=cv.getBoundingClientRect(),sx=(e.clientX-r.left)*cv.width/r.width,sy=(e.clientY-r.top)*cv.height/r.height;
- if(sys.big&&Math.hypot(sx-sys.big.x,sy-sys.big.y)<sys.big.R){enterMicro('planet',sys.planets[sys.focus].i);return;}
- if(sys.focus<0&&Math.hypot(sx-cv.width/2,sy-cv.height/2)<30*dpr()){enterMicro('star',sys.center);return;}
+ if(sys.big&&Math.hypot(sx-sys.big.x,sy-sys.big.y)<sys.big.R)return;
  let k=-1,bd=1e9;sys.pos.forEach((o,i)=>{const dd=Math.hypot(o.x-sx,o.y-sy);if(dd<(o.r||5)+14*dpr()&&dd<bd){bd=dd;k=i;}});
  if(k>=0){sys.focus=k;setFollow(sys.planets[k].i,'pianeta');}else if(sys.focus>=0){sys.focus=-1;setFollow(sys.center,'stella');}sysPanel();}
 let panelT=0;
@@ -1308,6 +1388,15 @@ function startCPU(reason){$('boot').innerHTML=`<div><b>WebGPU non disponibile</b
  $('npart').innerHTML='<option>3.000</option>';$('npart').disabled=true;$('count').textContent='3.000 particelle (CPU)';
  $('reset').onclick=()=>{if(sys.active)exitSystem();cpu.postMessage({cmd:'init',n:3000});resetLog();setFollow(-1);};resetLog();
  requestAnimationFrame(cpuFrame);}
+function hx(r,g,b){return'#'+[r,g,b].map(v=>Math.round(Math.max(0,Math.min(1,v))*255).toString(16).padStart(2,'0')).join('');}
+function mixc(a,b,t){t=Math.max(0,Math.min(1,t));return a.map((v,i)=>v+(b[i]-v)*t);}
+function sstep(a,b,x){const t=Math.max(0,Math.min(1,(x-a)/(b-a)));return t*t*(3-2*t);}
+const BB=[[1,.42,.16],[1,.66,.38],[1,.88,.7],[1,.97,.93],[.8,.87,1],[.58,.7,1]];
+function realHex(b,k){const L=b[k+7];if(L>0){const x=Math.max(0,Math.min(.9999,Math.log10(L/2e-5)/3))*5,i=Math.floor(x);return hx(...mixc(BB[i],BB[i+1],x-i));}
+ if(b[k+10]>0)return'#59d973';const te=b[k+12];if(te>0)return te<273?'#a6c2f2':te<=373?'#408cff':'#e8803a';
+ const t=(Math.log10(Math.max(b[k+4],1e-5))+5)/3.6,zm=Math.min(1,Math.sqrt(Math.max(0,b[k+5])/.15));
+ let c=mixc([.62,.33,.17],[.36,.52,1],sstep(.22,.4,t));c=mixc(c,mixc([.95,.2,.4],[.2,.85,.78],zm*.8),sstep(.45,.62,t));c=mixc(c,[.62,.58,1],sstep(.82,.95,t));
+ return hx(...[0,1,2].map(i=>Math.round(c[i]*15)/15));}
 const spr=new Map();function spriteOf(col){let c=spr.get(col);if(c)return c;c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d'),gr=x.createRadialGradient(32,32,0,32,32,32);gr.addColorStop(0,col+'55');gr.addColorStop(0.4,col+'22');gr.addColorStop(1,col+'00');x.fillStyle=gr;x.fillRect(0,0,64,64);spr.set(col,c);return c;}
 function cpuFrame(now){const c=$('c2'),d=dpr();if(c.width!==cv.width||c.height!==cv.height){c.width=cv.width;c.height=cv.height;}
  if(spin&&!userTouched&&cam.follow<0&&!sys.active)cam.yaw+=0.0015;
@@ -1316,16 +1405,16 @@ function cpuFrame(now){const c=$('c2'),d=dpr();if(c.width!==cv.width||c.height!=
  if(cpuSnap&&(!sys.active||sys.alpha<1)){const s=cpuSnap.st,b=cpuSnap.buf,N=cpuSnap.N;if(cam.follow>=0){const k=cam.follow*20;if(cpuSnap!==fol.snap){fol.snap=cpuSnap;if(!(sel&&sel.kind==='galaxy'))folSample([b[k],b[k+1],b[k+2]]);}folApply(now);}
   ctx2.globalCompositeOperation='source-over';ctx2.fillStyle='#04050a';ctx2.fillRect(0,0,W,H);
   const {vp,f}=viewProj();ctx2.globalCompositeOperation='lighter';const T=['#3c1459','#961f33','#dc5029','#ff963c','#ffd796','#fff8eb','#cddeff','#96b4ff'],Z=['#6e8cd6','#a0b0e0','#d6bf8c','#f58c45','#eb5029'];
-  for(let i=0;i<N;i++){const k=i*20,q=project(vp,b[k],b[k+1],b[k+2]);if(!q)continue;const col=mode===0?T[Math.max(0,Math.min(7,Math.round((Math.log10(Math.max(b[k+4],1e-5))+5)/3.6*7)))]:Z[Math.max(0,Math.min(4,Math.round(Math.min(1,Math.sqrt(b[k+5]/.15))*4)))];
+  for(let i=0;i<N;i++){const k=i*20,q=project(vp,b[k],b[k+1],b[k+2]);if(!q)continue;const col=mode===2?realHex(b,k):mode===0?T[Math.max(0,Math.min(7,Math.round((Math.log10(Math.max(b[k+4],1e-5))+5)/3.6*7)))]:Z[Math.max(0,Math.min(4,Math.round(Math.min(1,Math.sqrt(b[k+5]/.15))*4)))];
    if(cloud>0){const r=Math.min(36*d,b[k+3]*2.4*f*H/2/q[2]);if(r>1.5){ctx2.globalAlpha=cloud*0.35;ctx2.drawImage(spriteOf(col),q[0]-r,q[1]-r,2*r,2*r);}}
-   ctx2.globalAlpha=0.85;ctx2.fillStyle=b[k+7]>0?'#fff3c4':col;const sz=b[k+7]>0?4*d:1.6*d;ctx2.fillRect(q[0]-sz/2,q[1]-sz/2,sz,sz);
+   ctx2.globalAlpha=0.85;ctx2.fillStyle=b[k+7]>0&&mode!==2?'#fff3c4':col;const sz=b[k+7]>0?4*d:1.6*d;ctx2.fillRect(q[0]-sz/2,q[1]-sz/2,sz,sz);
    }
   ctx2.globalAlpha=1;}
  if(cpuSnap){const s=cpuSnap.st;if(!last||last.t!==s.t)onStats(s);$('perf').textContent=`Processore · 3.000 particelle · ${s.ms.toFixed(1)} ms per passo`;}
  if(sel&&sel.kind==='galaxy'&&cpuSnap&&now-(fol.gT||0)>1200){fol.gT=now;const G=analyzeGalaxy(cpuSnap.buf,sel.G.c);if(G.center>=0){sel.G=G;folSample(G.c);}}
- sysTick(now);microTick(now);hudTick();requestAnimationFrame(cpuFrame);}
+ sysTick(now);microTick(now);probeTick(now);hudTick();requestAnimationFrame(cpuFrame);}
 // ================= avvio =================
-window.__genesi={cam,sys,micro,enterMicro,pickData,setFollow,enterSystem,sysPanel,nextGalaxy,get sel(){return sel;},get g(){return g;}};
+window.__genesi={cam,sys,micro,probe,applyFilter,clearFilter,get filterZ(){return filterZ;},selectObject,enterMicro,pickData,setFollow,enterSystem,sysPanel,nextGalaxy,get sel(){return sel;},get g(){return g;}};
 renderPT(true);
 (async()=>{try{if(!navigator.gpu)throw new Error('Il browser non supporta WebGPU');await startGPU();}catch(err){console.warn(err);g=null;startCPU(err.message||'Errore GPU');}})();
 })();

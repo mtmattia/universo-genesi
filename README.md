@@ -8,7 +8,7 @@ Apri `index.html` in un browser (nessuna installazione, nessun server). La versi
 
 - **Big Bang**: una sfera di idrogeno ed elio (75/25) e materia oscura, con fluttuazioni di densità e flusso di Hubble.
 - **Materia oscura**: metà delle particelle e l'84% della massa, come nell'universo reale. Sente solo la gravità e forma gli aloni in cui il gas cade.
-- **Energia oscura**: una costante cosmologica che a grande distanza accelera l'espansione. Si può spegnere: senza, l'universo può ricollassare.
+- **Energia oscura**: una costante cosmologica che a grande distanza accelera l'espansione. Materia oscura ed energia oscura sono sempre attive.
 - **Gravità newtoniana esatta** tra tutte le coppie di particelle. Le forze vicine sono ricalcolate a ogni passo, quelle lontane distribuite su più passi.
 - **Idrodinamica SPH**: pressione, compressione che scalda, onde d'urto, mescolamento chimico.
 - **Raffreddamento radiativo**, più efficace con i metalli. Il gas molto denso diventa opaco.
@@ -24,23 +24,26 @@ Apri `index.html` in un browser (nessuna installazione, nessun server). La versi
 ## Come si usa
 
 - **Seme**: ogni universo nasce da un numero. Stesso seme, stesso Big Bang. Il link con `#s` seguito dal numero (per esempio `index.html#s4242`) apre sempre quell'universo.
-- **Tocca una galassia** per selezionarla: la camera ci vola e una scheda mostra stelle, pianeti, buchi neri e resti stellari. *Prossima galassia ›* passa alla successiva.
-- **Tocca una stella** per selezionare il suo sistema, poi *Entra* per vedere le orbite. Tocca un **pianeta** per vederlo da vicino.
-- **Vista interna** (*Dentro*): nel nucleo di una stella vedi la catena protone-protone, il ciclo CNO, la tripla alfa e le fusioni successive fino al ferro; in una nube fredda o su un pianeta vedi nascere H₂, acqua, metano, ammoniaca e aminoacidi, e le cellule se c'è vita. Le reazioni sono accelerate, ma quali avvengono dipende da temperatura e composizione della particella simulata.
+- **Tocca una galassia** per selezionarla: la camera la centra e la inquadra in circa un terzo della vista. *Prossima galassia ›* passa alla successiva.
+- **Tocca una stella, un pianeta o un buco nero**: il tocco preferisce sempre gli oggetti alle nubi di gas. La camera si aggancia e una **vista da sonda** mostra l'oggetto intero da vicino, che reagisce ai dati simulati: luminosità, fase (gigante, spegnimento), supernova, accrescimento del buco nero.
+- **Lock**: la selezione resta agganciata anche ruotando e zoomando, finché non premi *Esci*.
+- **Filtro per elemento** (versione GPU): tocca un elemento nella tavola periodica. La simulazione si ferma e restano visibili solo i punti più ricchi di quell'elemento (il 10% più ricco). Tocca uno di questi punti per centrarlo: la simulazione riparte su quell'oggetto.
+- **Colori**: *Realistico* (predefinito) colora le stelle per temperatura di corpo nero (rosse → blu), il gas ionizzato in rosa Hα o verde-azzurro dell'ossigeno, il gas neutro in blu, il gas freddo e polveroso in bruno, i pianeti con acqua in blu e quelli con vita in verde. *Temperatura* e *Composizione* restano disponibili.
 - Trascina per ruotare, rotella o pizzico per lo zoom, Shift+trascina o due dita per spostarti.
 - La **tavola periodica** sotto la vista mostra la composizione dell'universo intero, dell'oggetto selezionato o del Sole.
 - Il menu *Particelle* va da 8.192 a 262.144. All'avvio la pagina misura la GPU e sceglie il numero più alto sostenibile.
 
 ## Limiti
 
-La relatività generale non è simulata: la gravità dei buchi neri è newtoniana e l'orizzonte è solo disegnato. Il seme fissa le condizioni iniziali: la stessa GPU riproduce lo stesso universo, ma l'evoluzione è caotica e su dispositivi diversi può divergere col tempo. Le leggi sono reali, le scale no: tempi e distanze sono compressi di molti ordini di grandezza e una particella rappresenta una massa enorme di gas. Le orbite nella vista del sistema sono ricostruite, non simulate punto per punto. L'origine della vita è una regola scelta, non derivata da leggi fisiche. Le abbondanze del Sistema Solare usate come riferimento vengono dalla tabella Kaye & Laby (atomi per Si = 1). Le quote s/r degli elementi pesanti sono approssimate.
+La relatività generale non è simulata: la gravità dei buchi neri è newtoniana e l'orizzonte è solo disegnato. Il seme fissa le condizioni iniziali: la stessa GPU riproduce lo stesso universo, ma l'evoluzione è caotica e su dispositivi diversi può divergere col tempo. Le leggi sono reali, le scale no: tempi e distanze sono compressi di molti ordini di grandezza e una particella rappresenta una massa enorme di gas. Le orbite nella vista del sistema sono ricostruite, non simulate punto per punto. L'origine della vita è una regola scelta, non derivata da leggi fisiche. Le abbondanze del Sistema Solare usate come riferimento vengono dalla tabella Kaye & Laby (atomi per Si = 1). Le quote s/r degli elementi pesanti sono approssimate. La vista da sonda è un disegno procedurale guidato dai dati della particella, non una simulazione della superficie. I colori realistici sono una mappa fisica approssimata (temperatura e composizione → righe di emissione), non uno spettro calcolato.
 
 ## Struttura
 
 | Percorso | Contenuto |
 |---|---|
-| `index.html` | Versione 7 (esplorabile, vista interna), file unico pronto all'uso |
-| `versioni/` | Tutte le versioni come file unici: v1 atomi, v2 nubi di gas, v3 universo sferico, v4 GPU, v5 materia oscura e buchi neri, v6 esplorabile con seme, v7 vista interna |
+| `index.html` | Versione 8 (vista da sonda, lock, filtro per elemento, colori realistici), file unico pronto all'uso |
+| `versioni/` | Tutte le versioni come file unici: v1 atomi, v2 nubi di gas, v3 universo sferico, v4 GPU, v5 materia oscura e buchi neri, v6 esplorabile con seme, v7 vista interna, v8 vista da sonda |
+| `src/v8/` | Sorgenti della v8: `engine4.js`, `page9.html`, `build9.py`, `elements.js`, `core4.js` |
 | `src/v7/` | Sorgenti della v7 (vista interna, camera fluida, buchi neri con profondità): `engine3.js`, `page8.html`, `build8.py` |
 | `src/v6/` | Sorgenti della v6: `engine3.js`, `page7.html`, `build7.py` |
 | `src/v5/` | Sorgenti della v5: `engine2.js` (motore con tipi di particella), `page6.html`, `build6.py` |
@@ -48,6 +51,6 @@ La relatività generale non è simulata: la gravità dei buchi neri è newtonian
 | `src/v1`–`src/v3` | Sorgenti delle versioni precedenti |
 | `test/` | Prove automatiche con Playwright e Chromium (GPU software SwiftShader) |
 
-Per rigenerare `index.html` dopo una modifica: `cd src/v7 && python3 build8.py`.
+Per rigenerare `index.html` dopo una modifica: `cd src/v8 && python3 build9.py`.
 
 Per le prove: `npm i playwright`, poi `node test/runh.js 2000 2000 400` (fisica su GPU) oppure `node test/systest.js cpu 30000` (interfaccia e vista del sistema).

@@ -25,7 +25,8 @@ Apri `index.html` in un browser (nessuna installazione, nessun server). La versi
 
 - **Seme**: ogni universo nasce da un numero. Stesso seme, stesso Big Bang. Il link con `#s` seguito dal numero (per esempio `index.html#s4242`) apre sempre quell'universo.
 - **Tocca una galassia** per selezionarla: la camera ci vola e una scheda mostra stelle, pianeti, buchi neri e resti stellari. *Prossima galassia ›* passa alla successiva.
-- **Tocca una stella** per selezionare il suo sistema, poi *Entra nel sistema* per vedere le orbite. Tocca un **pianeta** per vederlo da vicino.
+- **Tocca una stella** per selezionare il suo sistema, poi *Entra* per vedere le orbite. Tocca un **pianeta** per vederlo da vicino.
+- **Vista interna** (*Dentro*): nel nucleo di una stella vedi la catena protone-protone, il ciclo CNO, la tripla alfa e le fusioni successive fino al ferro; in una nube fredda o su un pianeta vedi nascere H₂, acqua, metano, ammoniaca e aminoacidi, e le cellule se c'è vita. Le reazioni sono accelerate, ma quali avvengono dipende da temperatura e composizione della particella simulata.
 - Trascina per ruotare, rotella o pizzico per lo zoom, Shift+trascina o due dita per spostarti.
 - La **tavola periodica** sotto la vista mostra la composizione dell'universo intero, dell'oggetto selezionato o del Sole.
 - Il menu *Particelle* va da 8.192 a 262.144. All'avvio la pagina misura la GPU e sceglie il numero più alto sostenibile.
@@ -38,14 +39,15 @@ La relatività generale non è simulata: la gravità dei buchi neri è newtonian
 
 | Percorso | Contenuto |
 |---|---|
-| `index.html` | Versione 6 (esplorabile, con seme), file unico pronto all'uso |
-| `versioni/` | Tutte le versioni come file unici: v1 atomi, v2 nubi di gas, v3 universo sferico, v4 GPU, v5 materia oscura e buchi neri, v6 esplorabile con seme |
+| `index.html` | Versione 7 (esplorabile, vista interna), file unico pronto all'uso |
+| `versioni/` | Tutte le versioni come file unici: v1 atomi, v2 nubi di gas, v3 universo sferico, v4 GPU, v5 materia oscura e buchi neri, v6 esplorabile con seme, v7 vista interna |
+| `src/v7/` | Sorgenti della v7 (vista interna, camera fluida, buchi neri con profondità): `engine3.js`, `page8.html`, `build8.py` |
 | `src/v6/` | Sorgenti della v6: `engine3.js`, `page7.html`, `build7.py` |
 | `src/v5/` | Sorgenti della v5: `engine2.js` (motore con tipi di particella), `page6.html`, `build6.py` |
 | `src/v4/` | Sorgenti della v4: `engine.js` (shader WebGPU e motore), `elements.js` (tavola degli elementi), `core4.js` (ripiego su CPU), `page5.html` (interfaccia), `build5.py` (genera `index.html`) |
 | `src/v1`–`src/v3` | Sorgenti delle versioni precedenti |
 | `test/` | Prove automatiche con Playwright e Chromium (GPU software SwiftShader) |
 
-Per rigenerare `index.html` dopo una modifica: `cd src/v6 && python3 build7.py`.
+Per rigenerare `index.html` dopo una modifica: `cd src/v7 && python3 build8.py`.
 
 Per le prove: `npm i playwright`, poi `node test/runh.js 2000 2000 400` (fisica su GPU) oppure `node test/systest.js cpu 30000` (interfaccia e vista del sistema).

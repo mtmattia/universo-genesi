@@ -156,7 +156,7 @@ details ul{padding-left:18px;margin:8px 0 0}details li{margin-bottom:4px}
    </div>
    <label class="lab" for="npart">Particelle <select id="npart"></select></label>
    <label class="lab" id="cloudlab" for="cloud" hidden>Nubi <input id="cloud" type="range" min="0" max="100" step="1" value="55"></label>
-   <label class="lab" for="spd">Velocità <input id="spd" type="range" min="1" max="10" step="1" value="6"></label>
+   <label class="lab" for="spd">Velocità <input id="spd" type="range" min="1" max="40" step="1" value="6"></label>
    <button id="spin" aria-pressed="true">Rotazione</button>
   </div>
   <div class="ctrl"><label class="lab" for="seed">Seme</label><input id="seed" inputmode="numeric" autocomplete="off" style="font:500 13px var(--f-mono);background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:5px;padding:8px 10px;width:130px"><button id="seedGo">Crea questo universo</button><span class="lab" id="seedNote">Stesso seme, stesso Big Bang. Il link della pagina con #s seguito dal numero apre sempre questo universo.</span></div>
@@ -1438,7 +1438,7 @@ async function gpuFrame(now){if(g.lost)return;
   g.render(new Float32Array(vp),{fon:!!filterZ,fth:filterTh,real:mode>=2,band:mode-1,camD:cam.D,exposure:expo,dm:showDM,px:(cv.clientWidth<600?1.7:1.25)*d,cloudA:mode>=2?1:cloud*0.3*Math.cbrt(16384/g.N),cloudK:2.4*f,cloudMax:60*d,ptA:Math.max(0.3,Math.min(0.95,0.95*dens))});}
  else if(sys.active&&now-lastRender>1000){lastRender=now;g.prep(mode);}
  await g.done();const dt=performance.now()-t0;
- if(n>0){msStep=msStep?msStep*0.85+(dt/n)*0.15:dt/n;const tgt=turbo?140:24;stepsPF=Math.max(1,Math.min(400,Math.round(stepsPF*Math.min(1.5,Math.max(0.6,tgt/Math.max(1,dt))))));}
+ if(n>0){msStep=msStep?msStep*0.85+(dt/n)*0.15:dt/n;const tgt=turbo?140:Math.min(96,24*Math.max(1,speed/10));stepsPF=Math.max(1,Math.min(1600,Math.round(stepsPF*Math.min(1.5,Math.max(0.6,tgt/Math.max(1,dt))))));}
  if(now-lastStat>300){lastStat=now;g.readStats().then(s=>{if(s)onStats(s);});}
  if(sel&&sel.kind==='galaxy'&&now-(fol.gT||0)>1200){fol.gT=now;pickData().then(arr=>{if(arr&&sel&&sel.kind==='galaxy'){const G=analyzeGalaxy(arr,sel.G.c);if(G.center>=0){sel.G=G;folSample(G.c);}}});}
  if(cam.follow>=0&&now-lastFol>150){lastFol=now;g.readOne(cam.follow).then(a=>{if(a){lastOne={i:cam.follow,a};cam.ft=[a[0],a[1],a[2]];if(!(sel&&sel.kind==='galaxy'))folSample(cam.ft);const ty=a[16];if(ty===4)followExtra=' · '+(a[17]/g.mGas).toLocaleString('it-IT',{maximumFractionDigits:1})+' nubi di massa';else followExtra='';if(ty>4.5){toast('Questo oggetto è stato inghiottito da un buco nero');setFollow(-1);return;}onObjComp(Array.from(a.slice(4,16)));}});}

@@ -23,26 +23,29 @@ Apri `index.html` in un browser (nessuna installazione, nessun server). La versi
 
 ## Come si usa
 
+- **Seme**: ogni universo nasce da un numero. Stesso seme, stesso Big Bang. Il link con `#s` seguito dal numero (per esempio `index.html#s4242`) apre sempre quell'universo.
+- **Tocca una galassia** per selezionarla: la camera ci vola e una scheda mostra stelle, pianeti, buchi neri e resti stellari. *Prossima galassia ›* passa alla successiva.
+- **Tocca una stella** per selezionare il suo sistema, poi *Entra nel sistema* per vedere le orbite. Tocca un **pianeta** per vederlo da vicino.
 - Trascina per ruotare, rotella o pizzico per lo zoom, Shift+trascina o due dita per spostarti.
-- Doppio clic (o doppio tocco) su una stella o un pianeta per seguirlo. Continuando a zoomare entri nel suo **sistema planetario**: orbite ricostruite con la terza legge di Keplero dai dati simulati. Tocca un pianeta per vederlo da vicino.
-- La **tavola periodica** sotto la vista mostra la composizione dell'universo intero, dell'oggetto seguito o del Sole.
+- La **tavola periodica** sotto la vista mostra la composizione dell'universo intero, dell'oggetto selezionato o del Sole.
 - Il menu *Particelle* va da 8.192 a 262.144. All'avvio la pagina misura la GPU e sceglie il numero più alto sostenibile.
 
 ## Limiti
 
-La relatività generale non è simulata: la gravità dei buchi neri è newtoniana e l'orizzonte è solo disegnato. Le leggi sono reali, le scale no: tempi e distanze sono compressi di molti ordini di grandezza e una particella rappresenta una massa enorme di gas. Le orbite nella vista del sistema sono ricostruite, non simulate punto per punto. L'origine della vita è una regola scelta, non derivata da leggi fisiche. Le abbondanze del Sistema Solare usate come riferimento vengono dalla tabella Kaye & Laby (atomi per Si = 1). Le quote s/r degli elementi pesanti sono approssimate.
+La relatività generale non è simulata: la gravità dei buchi neri è newtoniana e l'orizzonte è solo disegnato. Il seme fissa le condizioni iniziali: la stessa GPU riproduce lo stesso universo, ma l'evoluzione è caotica e su dispositivi diversi può divergere col tempo. Le leggi sono reali, le scale no: tempi e distanze sono compressi di molti ordini di grandezza e una particella rappresenta una massa enorme di gas. Le orbite nella vista del sistema sono ricostruite, non simulate punto per punto. L'origine della vita è una regola scelta, non derivata da leggi fisiche. Le abbondanze del Sistema Solare usate come riferimento vengono dalla tabella Kaye & Laby (atomi per Si = 1). Le quote s/r degli elementi pesanti sono approssimate.
 
 ## Struttura
 
 | Percorso | Contenuto |
 |---|---|
-| `index.html` | Versione 5 (GPU, materia oscura, buchi neri), file unico pronto all'uso |
-| `versioni/` | Tutte le versioni come file unici: v1 atomi, v2 nubi di gas, v3 universo sferico, v4 GPU, v5 materia oscura e buchi neri |
+| `index.html` | Versione 6 (esplorabile, con seme), file unico pronto all'uso |
+| `versioni/` | Tutte le versioni come file unici: v1 atomi, v2 nubi di gas, v3 universo sferico, v4 GPU, v5 materia oscura e buchi neri, v6 esplorabile con seme |
+| `src/v6/` | Sorgenti della v6: `engine3.js`, `page7.html`, `build7.py` |
 | `src/v5/` | Sorgenti della v5: `engine2.js` (motore con tipi di particella), `page6.html`, `build6.py` |
 | `src/v4/` | Sorgenti della v4: `engine.js` (shader WebGPU e motore), `elements.js` (tavola degli elementi), `core4.js` (ripiego su CPU), `page5.html` (interfaccia), `build5.py` (genera `index.html`) |
 | `src/v1`–`src/v3` | Sorgenti delle versioni precedenti |
 | `test/` | Prove automatiche con Playwright e Chromium (GPU software SwiftShader) |
 
-Per rigenerare `index.html` dopo una modifica: `cd src/v5 && python3 build6.py`.
+Per rigenerare `index.html` dopo una modifica: `cd src/v6 && python3 build7.py`.
 
 Per le prove: `npm i playwright`, poi `node test/runh.js 2000 2000 400` (fisica su GPU) oppure `node test/systest.js cpu 30000` (interfaccia e vista del sistema).

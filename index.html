@@ -109,6 +109,7 @@ details ul{padding-left:18px;margin:8px 0 0}details li{margin-bottom:4px}
    <div class="scalebar" id="scalebox"><i id="sbar"></i><span id="slab">—</span></div>
    <div class="zoom"><button id="zin" aria-label="Avvicina">+</button><button id="zout" aria-label="Allontana">−</button></div>
    <button class="enter" id="enter" hidden>Entra nel sistema</button>
+   <div class="syspanel" id="selcard" hidden></div>
    <div class="syspanel" id="syspanel" hidden></div>
    <div class="toast" id="toast"></div>
   </div>
@@ -117,6 +118,7 @@ details ul{padding-left:18px;margin:8px 0 0}details li{margin-bottom:4px}
    <button id="reset">Nuovo Big Bang</button>
    <button id="turbo" aria-pressed="false">Turbo</button>
    <button id="center">Centra</button>
+   <button id="nextg">Prossima galassia ›</button>
    <div class="seg" role="group" aria-label="Colore delle particelle">
     <button id="mT" aria-pressed="true">Temperatura</button><button id="mZ" aria-pressed="false">Composizione</button>
    </div>
@@ -127,7 +129,8 @@ details ul{padding-left:18px;margin:8px 0 0}details li{margin-bottom:4px}
    <button id="dmb" aria-pressed="false">Mostra materia oscura</button>
    <button id="lamb" aria-pressed="true">Energia oscura</button>
   </div>
-  <p class="hint">Trascina per ruotare · rotella, pizzico o +/− per lo zoom · Shift+trascina o due dita per spostarti · doppio clic su una stella o un pianeta per seguirlo · continua a zoomare per entrare nel suo sistema planetario.</p>
+  <div class="ctrl"><label class="lab" for="seed">Seme</label><input id="seed" inputmode="numeric" autocomplete="off" style="font:500 13px var(--f-mono);background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:5px;padding:8px 10px;width:130px"><button id="seedGo">Crea questo universo</button><span class="lab" id="seedNote">Stesso seme, stesso Big Bang. Il link della pagina con #s seguito dal numero apre sempre questo universo.</span></div>
+  <p class="hint">Tocca una galassia per selezionarla, poi una stella per entrare nel suo sistema e un pianeta per vederlo da vicino · trascina per ruotare · rotella o pizzico per lo zoom · Shift+trascina o due dita per spostarti.</p>
   <div class="legend" id="legend"></div>
  </div>
  <aside>
@@ -592,13 +595,9 @@ const OFF=vec4<f32>(2.,2.,2.,1.);
 @vertex fn vring(@builtin(vertex_index) vi:u32,@location(0) a:vec4<f32>,@location(1) b:vec4<f32>,@location(2) e:vec4<f32>,@location(3) t:vec4<f32>)->O{var o:O;let uv=corner(vi);let c=v.vp*vec4<f32>(a.xyz,1.0);
  if(c.w<=0.0){o.pos=OFF;return o;}
  if(t.x==4.0){let rpx=v.px*clamp(3.0+log2(1.0+t.y)*1.6,3.0,22.0);o.pos=place(c,uv,rpx);o.uv=uv;o.col=vec4<f32>(1.0,0.62,0.25,clamp(0.35+log2(1.0+t.z*200.0)*0.25,0.35,1.0));o.ex=vec4<f32>(1.0,0.,0.,0.);return o;}
- if(t.x!=0.0||e.x<0.5){o.pos=OFF;return o;}
- var col=vec4<f32>(0.79,0.54,0.29,0.85);var rpx=v.px*3.5;
- if(e.x>1.5&&e.x<2.5){col=vec4<f32>(0.44,0.83,1.0,0.95);}
- if(e.x>2.5){let h=e.y/60.0;let k=vec3<f32>(5.0,3.0,1.0);let rgb=clamp(abs(fract(vec3<f32>(h/6.0)+k/6.0)*6.0-3.0)-1.0,vec3(0.),vec3(1.));col=vec4<f32>(mix(vec3(1.0),rgb,0.75),0.5+0.5*min(1.0,e.z));rpx=v.px*5.5;}
- o.pos=place(c,uv,rpx);o.uv=uv;o.col=col;o.ex=vec4<f32>(0.);return o;}
+ o.pos=OFF;return o;}
 @fragment fn fring(i:O)->@location(0) vec4<f32>{let r=length(i.uv);
- if(i.ex.x>0.5){if(r>1.0){discard;}if(r<0.42){return vec4<f32>(0.0,0.0,0.0,1.0);}let gl=i.col.a*exp(-pow((r-0.55)*7.0,2.0))+0.25*i.col.a*exp(-pow((r-0.55)*3.0,2.0));return vec4<f32>(i.col.rgb*gl,gl);}
+ if(i.ex.x>0.5){if(r>1.0){discard;}if(r<0.32){return vec4<f32>(0.0,0.0,0.0,1.0);}let gl=0.8*i.col.a*exp(-pow((r-0.36)*5.0,2.0))*(1.0-r);return vec4<f32>(i.col.rgb*gl,gl);}
  let a=i.col.a*(1.0-smoothstep(0.0,0.18,abs(r-0.78)));if(a<0.01){discard;}return vec4<f32>(i.col.rgb*a,a);}
 `;
 class GenesisGPU{
@@ -639,7 +638,7 @@ class GenesisGPU{
   this.u32.fill(0);for(const k in prm)this.setU(k,prm[k]);this.setU('N',N);this.setU('TB',this.TB);
   this.K=o.K||Math.max(N<=16384?4:N<=65536?6:8,Math.ceil(N*N/2e9));this.chunk=Math.ceil(N/this.K/256)*256;
   // condizioni iniziali: sfera di gas H/He 75/25 e materia oscura, fluttuazioni di densità, flusso di Hubble
-  const R=Math.random,pos=new Float32Array(N*4),vel=new Float32Array(N*4),comp=new Float32Array(N*16),bio=new Float32Array(N*8);
+  let _s=(o.seed>>>0)||1;const R=()=>{_s=(_s+0x6D2B79F5)>>>0;let t=_s;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;};this.seed=o.seed>>>0;const pos=new Float32Array(N*4),vel=new Float32Array(N*4),comp=new Float32Array(N*16),bio=new Float32Array(N*8);
   const rdir=()=>{const c=R()*2-1,a=R()*6.2832,s=Math.sqrt(1-c*c);return[s*Math.cos(a),s*Math.sin(a),c];};
   const seeds=[];for(let k=0;k<(o.seeds||30);k++){const dd=rdir(),r=R0*.85*Math.cbrt(R());seeds.push([dd[0]*r,dd[1]*r,dd[2]*r]);}
   const vesc=Math.sqrt(2*G*MTOT/R0),H0=(o.fH||0.85)*vesc/R0;
@@ -873,18 +872,18 @@ window.addEventListener('resize',size);size();
 // ================= interazione =================
 let drag=null,pts=new Map(),pinch=null,lastTap=0,userTouched=false,downAt=null;
 cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);pts.set(e.pointerId,{x:e.clientX,y:e.clientY});drag={x:e.clientX,y:e.clientY,pan:e.shiftKey||e.button===2};downAt={x:e.clientX,y:e.clientY,t:performance.now()};userTouched=true;
- if(e.pointerType==='touch'&&!sys.active){const now=performance.now();if(now-lastTap<300&&pts.size===1)pick(e);lastTap=now;}});
+ });
 cv.addEventListener('pointermove',e=>{if(!pts.has(e.pointerId))return;pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
  if(pts.size>=2){const a=[...pts.values()];const d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y),mx=(a[0].x+a[1].x)/2,my=(a[0].y+a[1].y)/2;
   if(pinch){zoomBy(pinch.d/d);if(!sys.active)panBy(mx-pinch.mx,my-pinch.my);}pinch={d,mx,my};return;}
  if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag.x=e.clientX;drag.y=e.clientY;
  if(sys.active){sys.tilt=Math.max(0.12,Math.min(1,sys.tilt+dy*0.004));sys.spin+=dx*0.006;return;}
  if(drag.pan)panBy(dx,dy);else{cam.yaw-=dx*0.006;cam.pitch=Math.max(-1.45,Math.min(1.45,cam.pitch+dy*0.006));}});
-const up=e=>{if(sys.active&&downAt&&pts.size===1&&Math.hypot(e.clientX-downAt.x,e.clientY-downAt.y)<6)sysClick(e);pts.delete(e.pointerId);if(pts.size<2)pinch=null;if(pts.size===0)drag=null;};
+const up=e=>{const isClick=downAt&&pts.size===1&&Math.hypot(e.clientX-downAt.x,e.clientY-downAt.y)<6&&performance.now()-downAt.t<500;if(isClick){if(sys.active)sysClick(e);else selectAt(e);}pts.delete(e.pointerId);if(pts.size<2)pinch=null;if(pts.size===0)drag=null;};
 cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',e=>{pts.delete(e.pointerId);pinch=null;drag=null;});cv.addEventListener('contextmenu',e=>e.preventDefault());
 cv.addEventListener('wheel',e=>{e.preventDefault();zoomBy(Math.exp(e.deltaY*0.0015));},{passive:false});
-cv.addEventListener('dblclick',e=>{if(!sys.active)pick(e);});
-function zoomBy(k){if(sys.active){sys.zoom/=k;if(sys.zoom<sys.fit*0.3){exitSystem();}else sys.zoom=Math.min(sys.zoom,sys.fit*80);return;}cam.D=Math.max(0.3,Math.min(2e6,cam.D*k));}
+
+function zoomBy(k){cam.fly=null;if(sys.active){sys.zoom/=k;if(sys.zoom<sys.fit*0.3){exitSystem();}else sys.zoom=Math.min(sys.zoom,sys.fit*80);return;}cam.D=Math.max(0.3,Math.min(2e6,cam.D*k));}
 function panBy(dx,dy){if(cam.follow>=0)setFollow(-1);const B=camBasis(),wpp=2*cam.D*Math.tan(cam.fov/2)/cv.clientHeight;for(let k=0;k<3;k++)cam.t[k]+=(-dx*B.x[k]+dy*B.y[k])*wpp;}
 $('zin').onclick=()=>zoomBy(1/1.6);$('zout').onclick=()=>zoomBy(1.6);
 const tog=(id,v)=>$(id).setAttribute('aria-pressed',String(v));
@@ -900,7 +899,7 @@ $('cloud').oninput=e=>{cloud=+e.target.value/100;};
 $('center').onclick=()=>{if(sys.active)exitSystem();setFollow(-1);if(last){cam.t=[...last.cm];cam.D=Math.max(60,(last.R||100)*4);}};
 $('enter').onclick=()=>enterSystem(true);
 function legend(){const T=['#3c1459','#961f33','#dc5029','#ff963c','#ffd796','#fff8eb','#cddeff','#96b4ff'],Z=['#6e8cd6','#a0b0e0','#d6bf8c','#f58c45','#eb5029'];const css=a=>'linear-gradient(90deg,'+a.join(',')+')';
- $('legend').innerHTML=(mode===0?`<span>Freddo<i class="ramp" style="background:${css(T)}"></i>Caldissimo</span>`:`<span>Solo H e He<i class="ramp" style="background:${css(Z)}"></i>Ricco di metalli</span>`)+`<span><i class="dot" style="background:#fff3c4;box-shadow:0 0 6px #ffd27a"></i>Stella</span><span><i class="dot" style="border:1.5px solid #c98a4b"></i>Pianeta</span><span><i class="dot" style="border:1.5px solid #6fd3ff"></i>Zona abitabile</span><span><i class="dot" style="border:1.5px solid var(--life)"></i>Vita</span><span><i class="dot" style="background:#c7e0ff"></i>Nana bianca</span><span><i class="dot" style="background:#73fff2"></i>Stella di neutroni</span><span><i class="dot" style="background:#000;box-shadow:0 0 0 2px #ff9e40"></i>Buco nero</span>${showDM?'<span><i class="dot" style="background:#8c6bff"></i>Materia oscura</span>':''}`;}
+ $('legend').innerHTML=(mode===0?`<span>Freddo<i class="ramp" style="background:${css(T)}"></i>Caldissimo</span>`:`<span>Solo H e He<i class="ramp" style="background:${css(Z)}"></i>Ricco di metalli</span>`)+`<span><i class="dot" style="background:#fff3c4;box-shadow:0 0 6px #ffd27a"></i>Stella</span><span><i class="dot" style="background:#c7e0ff"></i>Nana bianca</span><span><i class="dot" style="background:#73fff2"></i>Stella di neutroni</span><span><i class="dot" style="background:#000;box-shadow:0 0 0 2px #ff9e40"></i>Buco nero</span>${showDM?'<span><i class="dot" style="background:#8c6bff"></i>Materia oscura</span>':''}`;}
 legend();
 // ================= cronaca e statistiche =================
 const FIRST=[['fus','Prima stella: il gas collassa, si scalda e fonde idrogeno in elio'],['c','Nasce il carbonio: l\'elio brucia nel nucleo di una stella'],['o','Nasce l\'ossigeno'],['h2o','Prima acqua: in una nube fredda H e O formano H₂O'],['org','Prime molecole organiche (C, H, N, O)'],['mg','Nascono i metalli (Mg, Si)'],['fe','Nasce il ferro: la stella è alla fine'],['sn','Prima supernova: ossigeno, silicio, ferro e i primi elementi pesanti del processo r vengono dispersi nello spazio'],['planet','Primo sistema planetario: polveri fredde attorno a una stella'],['hz','Primo pianeta nella zona abitabile: acqua liquida in superficie'],['life','Prima forma di vita: chimica organica in acqua liquida diventa autoreplicante'],['spread','La vita si diffonde su un pianeta vicino']];
@@ -929,10 +928,10 @@ function onStats(s){last=s;
  universeBins={H:s.tot[0],He:s.tot[1],C:s.tot[2],N:s.tot[3],O:s.tot[4],Mg:s.tot[5],Fe:s.tot[6],s:s.trac?s.trac[0]:est(s.tot).s,r:s.trac?s.trac[1]:est(s.tot).r,L:s.trac?s.trac[2]:est(s.tot).L,est:!s.trac};
  if(ptSrc==='U')renderPT();}
 function est(t){const f=t[6]/SOLAR.fePeak;return{s:0.4*f,r:0.6*f,L:0.2*(t[2]+t[3]+t[4])/SOLAR.cno};}
-function hudTick(){if(sys.active){$('scalebox').hidden=true;}else{$('scalebox').hidden=false;const wpp=2*cam.D*Math.tan(cam.fov/2)/cv.clientHeight,raw=wpp*100,p=Math.pow(10,Math.floor(Math.log10(raw))),m=raw/p,nice=(m<2?1:m<5?2:5)*p;
+function hudTick(){if(sys.active||sel){$('scalebox').hidden=true;}else{$('scalebox').hidden=false;const wpp=2*cam.D*Math.tan(cam.fov/2)/cv.clientHeight,raw=wpp*100,p=Math.pow(10,Math.floor(Math.log10(raw))),m=raw/p,nice=(m<2?1:m<5?2:5)*p;
  $('sbar').style.width=(nice/wpp)+'px';$('slab').textContent=nice.toLocaleString('it-IT',{maximumFractionDigits:2})+' unità';}
  $('follow').textContent=cam.follow>=0?(followKind||'particella')+' #'+cam.follow+followExtra:'';
- $('enter').hidden=sys.active||cam.follow<0||!(followKind==='stella'||followKind==='pianeta');
+ $('enter').hidden=true;$('selcard').hidden=sys.active||!sel;
  if(performance.now()-toastT>4500)$('toast').style.opacity=0;}
 // ================= tavola periodica =================
 let ptSrc='U',selZ=26,universeBins={H:0.75,He:0.25,C:0,N:0,O:0,Mg:0,Fe:0,s:0,r:0,L:0},objBins=null,objLabel='';
@@ -964,16 +963,62 @@ let followExtra='',g=null,cpu=null,stepsPF=2,msStep=0,lastStat=0,lastFol=0,lastR
 const STRIDE=20;
 async function pickData(){if(g){const now=performance.now();if(pickCache&&now-pickT<300)return pickCache;const a=await g.readPick();if(a){pickCache=a;pickT=now;}return a;}if(cpuSnap)return cpuSnap.buf;return null;}
 function kindOf(arr,i){const k=i*STRIDE,ty=arr[k+16];if(ty===4)return'buco nero';if(ty===3)return'stella di neutroni';if(ty===2)return'nana bianca';if(ty===1)return'materia oscura';if(arr[k+10]>0)return'pianeta';if(arr[k+8]>=1)return'pianeta';if(arr[k+7]>0)return'stella';return'gas';}
-async function pick(e){const r=cv.getBoundingClientRect(),sx=(e.clientX-r.left)*cv.width/r.width,sy=(e.clientY-r.top)*cv.height/r.height;const {vp}=viewProj();
+let sel=null,pendingPlanet=-1;const GAL_D=70;
+let seed=(()=>{const m=/^#s(\d{1,9})$/.exec(location.hash||'');return m?+m[1]:Math.floor(Math.random()*1e9);})();
+function showSeed(){$('seed').value=String(seed);try{history.replaceState(null,'','#s'+seed);}catch(e){try{location.hash='s'+seed;}catch(e2){}}}
+let galaxies=[],galIdx=-1;
+function findGalaxies(arr){const N=arr.length/STRIDE,cells=new Map(),C=20;
+ for(let i=0;i<N;i++){const k=i*STRIDE,ty=arr[k+16];if(ty>4.5)continue;const key=Math.floor(arr[k]/C)+','+Math.floor(arr[k+1]/C)+','+Math.floor(arr[k+2]/C);let c=cells.get(key);if(!c){c={n:0,st:0,x:0,y:0,z:0};cells.set(key,c);}c.n++;if(arr[k+7]>0)c.st++;c.x+=arr[k];c.y+=arr[k+1];c.z+=arr[k+2];}
+ const top=[...cells.values()].filter(c=>c.n>=15).sort((a,b)=>(b.st*50+b.n)-(a.st*50+a.n)).slice(0,40);const out=[];
+ for(const c of top){const G=analyzeGalaxy(arr,[c.x/c.n,c.y/c.n,c.z/c.n]);if(G.center<0)continue;if(out.some(o=>Math.hypot(o.c[0]-G.c[0],o.c[1]-G.c[1],o.c[2]-G.c[2])<20))continue;out.push(G);if(out.length>=12)break;}
+ return out.sort((a,b)=>b.stars-a.stars||(b.gas+b.dm)-(a.gas+a.dm));}
+async function nextGalaxy(){const arr=await pickData();if(!arr)return;if(sys.active)exitSystem();
+ if(!galaxies.length||galIdx>=galaxies.length-1){galaxies=findGalaxies(arr);galIdx=-1;}
+ if(!galaxies.length){toast('Nessuna struttura ancora: aspetta che il gas si addensi');return;}
+ galIdx=(galIdx+1)%galaxies.length;const G=analyzeGalaxy(arr,galaxies[galIdx].c);sel={kind:'galaxy',G};setFollow(G.center,'galassia');cam.ft=[...G.c];flyTo(Math.max(12,G.R*3.2));renderSel();toast(`Galassia ${galIdx+1} di ${galaxies.length}`);}
+$('nextg').onclick=nextGalaxy;
+$('seedGo').onclick=()=>{const v=parseInt(($('seed').value||'').replace(/\D/g,''),10);if(!(v>=0)){toast('Scrivi un numero');return;}seed=v%1e9;newUniverse();};
+$('seed').addEventListener('keydown',e=>{if(e.key==='Enter')$('seedGo').click();});
+function newUniverse(){if(sys.active)exitSystem();clearSel();galaxies=[];galIdx=-1;showSeed();if(g){g.reset(g.N,{seed});pickCache=null;}else if(cpu){cpu.postMessage({cmd:'init',n:3000});}resetLog();addLog(0,'Seme '+seed);}
+function flyTo(D){cam.fly={D};userTouched=true;}
+function analyzeGalaxy(arr,P){const N=arr.length/STRIDE;let c=[...P],R=18;
+ for(let it=0;it<4;it++){let sx=0,sy=0,sz=0,n=0;for(let i=0;i<N;i++){const k=i*STRIDE;if(arr[k+16]>4.5)continue;const dx=arr[k]-c[0],dy=arr[k+1]-c[1],dz=arr[k+2]-c[2];if(dx*dx+dy*dy+dz*dz<R*R){sx+=arr[k];sy+=arr[k+1];sz+=arr[k+2];n++;}}if(!n)break;c=[sx/n,sy/n,sz/n];}
+ const ds=[];for(let i=0;i<N;i++){const k=i*STRIDE;if(arr[k+16]>4.5)continue;const d=Math.hypot(arr[k]-c[0],arr[k+1]-c[1],arr[k+2]-c[2]);if(d<25)ds.push(d);}ds.sort((x,y)=>x-y);
+ const Rg=Math.max(4,Math.min(25,ds.length?ds[Math.floor(ds.length*0.8)]:8));
+ const G={c,R:Rg,stars:0,planets:0,habit:0,life:0,bh:0,wd:0,ns:0,gas:0,dm:0,bhMax:0,center:-1};let cd=1e9;
+ for(let i=0;i<N;i++){const k=i*STRIDE,ty=arr[k+16];if(ty>4.5)continue;const d=Math.hypot(arr[k]-c[0],arr[k+1]-c[1],arr[k+2]-c[2]);if(d>Rg)continue;
+  if(ty!==1&&d<cd){cd=d;G.center=i;}
+  if(ty===1)G.dm++;else if(ty===2)G.wd++;else if(ty===3)G.ns++;else if(ty===4){G.bh++;G.bhMax=Math.max(G.bhMax,arr[k+17]);}
+  else{G.gas++;if(arr[k+7]>0)G.stars++;if(arr[k+8]>=1)G.planets++;if(arr[k+8]>=2)G.habit++;if(arr[k+10]>0)G.life++;}}
+ G.name=G.stars>=5?'Galassia':G.gas+G.dm>=40?'Protogalassia':'Nube di gas';return G;}
+function hostStar(arr,i){const N=arr.length/STRIDE,k0=i*STRIDE;if(arr[k0+7]>0)return i;let best=-1,bl=0;
+ for(let j=0;j<N;j++){const k=j*STRIDE,L=arr[k+7];if(L<=0)continue;const d2=(arr[k]-arr[k0])**2+(arr[k+1]-arr[k0+1])**2+(arr[k+2]-arr[k0+2])**2;if(d2<400&&L/(1+d2)>bl){bl=L/(1+d2);best=j;}}return best;}
+function systemInfo(arr,si){const N=arr.length/STRIDE,k0=si*STRIDE;let L=0,pl=0,hz=0,life=0;
+ for(let j=0;j<N;j++){const k=j*STRIDE;if(arr[k+16]!==0)continue;const d2=(arr[k]-arr[k0])**2+(arr[k+1]-arr[k0+1])**2+(arr[k+2]-arr[k0+2])**2;if(arr[k+7]>0&&d2<9)L+=arr[k+7];if(arr[k+8]>=1&&arr[k+12]>0&&d2<400){pl++;if(arr[k+8]>=2)hz++;if(arr[k+10]>0)life++;}}
+ const Lrel=Math.max(0.01,L/LREF);const sp=SPEC.find(x=>Lrel>=x[1]);return{cls:sp[0],T:sp[3],L:Lrel,pl:Math.min(pl,9),hz,life};}
+async function selectAt(e){const r=cv.getBoundingClientRect(),sx=(e.clientX-r.left)*cv.width/r.width,sy=(e.clientY-r.top)*cv.height/r.height;const {vp}=viewProj();
  const arr=await pickData();if(!arr)return;const N=arr.length/STRIDE;
- let best=-1,bs=1e9;const R2=(30*dpr())**2;
+ let best=-1,bs=1e9;const R2=(34*dpr())**2;
  for(let i=0;i<N;i++){const k=i*STRIDE,q=project(vp,arr[k],arr[k+1],arr[k+2]);if(!q)continue;const d=(q[0]-sx)**2+(q[1]-sy)**2;if(d>R2)continue;
-  const ty=arr[k+16];if(ty>4.5||(ty===1&&!showDM))continue;const pr=ty===4?5:(ty===2||ty===3)?2.2:ty===1?-0.5:arr[k+10]>0?4:arr[k+8]>=2?3:arr[k+8]>=1?2.5:arr[k+7]>0?2:0;const score=d/R2-pr;if(score<bs){bs=score;best=i;}}
- if(best>=0){setFollow(best,kindOf(arr,best));const k=best*STRIDE;cam.ft=[arr[k],arr[k+1],arr[k+2]];cam.D=Math.max(0.5,Math.min(cam.D/3,40));userTouched=true;
-  toast(followKind==='buco nero'?'Stai seguendo un buco nero: il gas che gli passa troppo vicino viene inghiottito':followKind==='nana bianca'?'Nana bianca: il nucleo spento di una stella come il Sole. Può esplodere come supernova di tipo Ia':followKind==='stella di neutroni'?'Stella di neutroni: il nucleo collassato di una supernova. Fondendosi con un\'altra produce oro e platino':followKind==='materia oscura'?'Materia oscura: sente solo la gravità, non emette luce':followKind==='stella'?'Stai seguendo una stella: continua a zoomare per entrare nel suo sistema':followKind==='pianeta'?'Stai seguendo un pianeta: continua a zoomare per entrare nel suo sistema':'Stai seguendo una nube di gas');}}
+  const ty=arr[k+16];if(ty>4.5||(ty===1&&!showDM))continue;const pr=ty===4?3:(ty===2||ty===3)?1.5:arr[k+7]>0?2:arr[k+8]>=1?1.8:0;const score=d/R2-pr;if(score<bs){bs=score;best=i;}}
+ if(best<0){clearSel();return;}
+ const k=best*STRIDE,P=[arr[k],arr[k+1],arr[k+2]],ty=arr[k+16];
+ if(cam.D>GAL_D){const G=analyzeGalaxy(arr,P);if(G.center<0){clearSel();return;}sel={kind:'galaxy',G};setFollow(G.center,'galassia');cam.ft=[...G.c];flyTo(Math.max(12,G.R*3.2));renderSel();return;}
+ if(ty===0&&(arr[k+7]>0||arr[k+8]>=1)){const si=hostStar(arr,best);if(si>=0){const info=systemInfo(arr,si);sel={kind:'system',si,info,planet:arr[k+8]>=1&&arr[k+7]<=0?best:-1};setFollow(si,'stella');const ks=si*STRIDE;cam.ft=[arr[ks],arr[ks+1],arr[ks+2]];flyTo(Math.min(cam.D,6));renderSel();return;}}
+ const kind=kindOf(arr,best);sel={kind:'object',i:best,label:kind,mass:arr[k+17],temp:arr[k+4]};setFollow(best,kind);cam.ft=P;flyTo(Math.min(cam.D,8));renderSel();}
+function clearSel(){sel=null;$('selcard').hidden=true;setFollow(-1);}
+function renderSel(){const el=$('selcard');if(!sel){el.hidden=true;return;}let h='';
+ if(sel.kind==='galaxy'){const G=sel.G;const desc=G.name==='Galassia'?'Un alone di materia oscura che trattiene gas e stelle.':G.name==='Protogalassia'?(G.stars?'Gas e materia oscura che stanno collassando: si accendono le prime stelle.':'Gas e materia oscura che stanno collassando: le stelle non si sono ancora accese.'):'Gas sparso che non forma ancora una struttura.';
+  h=`<h3>${G.name} G-${G.center}</h3><div class="meta">diametro ~${Math.round(G.R*2)} unità · ${G.stars} stelle · ${G.planets} pianeti${G.habit?' ('+G.habit+' abitabili)':''}${G.life?' · vita su '+G.life:''} · ${G.bh} buchi neri${G.bhMax>0?' (il maggiore '+G.bhMax.toLocaleString('it-IT',{maximumFractionDigits:1})+' nubi)':''} · ${G.wd} nane bianche · ${G.ns} stelle di neutroni</div><p>${desc} Tocca una stella per entrare nel suo sistema.</p><div class="row"><button id="selGo">Avvicinati</button><button id="selX">Chiudi</button></div>`;}
+ else if(sel.kind==='system'){const I=sel.info;h=`<h3>Sistema stellare #${sel.si} · stella di classe ${I.cls}</h3><div class="meta">~${I.T.toLocaleString('it-IT')} K · luminosità ${I.L.toLocaleString('it-IT',{maximumSignificantDigits:2})}× · ${I.pl} ${I.pl===1?'pianeta':'pianeti'}${I.hz?' · '+I.hz+' in zona abitabile':''}${I.life?' · vita presente':''}</div><p>${I.pl?'Entra per vedere le orbite e toccare i pianeti.':'Nessun pianeta: attorno a questa stella non ci sono ancora polveri fredde.'}</p><div class="row"><button id="selGo">Entra nel sistema</button><button id="selX">Chiudi</button></div>`;}
+ else{const L=sel.label;const D={'buco nero':`Massa ${(sel.mass/(g?g.mGas:1)).toLocaleString('it-IT',{maximumFractionDigits:1})} nubi di gas. Inghiotte il gas che gli passa troppo vicino e cresce.`,'nana bianca':'Il nucleo spento di una stella come il Sole. Prima o poi può esplodere come supernova di tipo Ia.','stella di neutroni':'Il nucleo collassato di una supernova. Se si fonde con un\'altra produce oro e platino.','materia oscura':'Sente solo la gravità e non emette luce.','gas':'Gas interstellare: se diventa abbastanza denso accende una nuova stella.'};
+  h=`<h3>${L.charAt(0).toUpperCase()+L.slice(1)} #${sel.i}</h3><p>${D[L]||''}</p><div class="row"><button id="selGo">Avvicinati</button><button id="selX">Chiudi</button></div>`;}
+ el.innerHTML=h;el.hidden=sys.active;
+ $('selX').onclick=clearSel;
+ $('selGo').onclick=()=>{if(sel.kind==='galaxy')flyTo(Math.max(6,sel.G.R*1.3));else if(sel.kind==='system'){pendingPlanet=sel.planet;flyTo(ENTER_D*0.6);}else flyTo(3);};}
 function setFollow(i,kind){cam.follow=i;followKind=i>=0?(kind||followKind):'';if(i<0){objBins=null;$('srcO').disabled=true;if(ptSrc==='O'){ptSrc='U';tog('srcU',1);tog('srcO',0);}}if(cpu)cpu.postMessage({cmd:'sel',i});}
 function binsFromComp(c){return{H:c[0],He:c[1],C:c[2],N:c[3],O:c[4],Mg:c[5],Fe:c[6],s:c[8],r:c[9],L:c[10]};}
-function onObjComp(c,isEst){if(!c)return;let b;if(isEst){const f=c[6]/SOLAR.fePeak;b={H:c[0],He:c[1],C:c[2],N:c[3],O:c[4],Mg:c[5],Fe:c[6],s:0.4*f,r:0.6*f,L:0.2*(c[2]+c[3]+c[4])/SOLAR.cno,est:true};}else b=binsFromComp(c);
+function onObjComp(c,isEst){if(!c||followKind==='galassia')return;let b;if(isEst){const f=c[6]/SOLAR.fePeak;b={H:c[0],He:c[1],C:c[2],N:c[3],O:c[4],Mg:c[5],Fe:c[6],s:0.4*f,r:0.6*f,L:0.2*(c[2]+c[3]+c[4])/SOLAR.cno,est:true};}else b=binsFromComp(c);
  objBins=b;objLabel=(sys.active&&sys.focus>=0?'questo pianeta (gas e polveri da cui si forma)':['buco nero','stella di neutroni','nana bianca'].includes(followKind)?'il materiale da cui si è formato questo oggetto':followKind==='materia oscura'?'nessun elemento: la materia oscura non è fatta di atomi':followKind==='stella'?'questa stella':followKind==='pianeta'?'questo pianeta (gas e polveri da cui si forma)':'questa nube di gas')+' · particella #'+cam.follow;$('srcO').disabled=false;if(ptSrc==='O')renderPT();}
 function setN(N){$('npart').value=String(N);$('count').textContent=N.toLocaleString('it-IT')+' particelle';}
 async function startGPU(){
@@ -982,19 +1027,20 @@ async function startGPU(){
  g.onlost=info=>{$('perf').className='perf warn';$('perf').textContent='La GPU si è fermata ('+(info&&info.message||'dispositivo perso')+'). Ricarica la pagina e scegli meno particelle.';};
  g.reset(16384,{});g.step(2,0);await g.done();const t0=performance.now();g.step(8,0);await g.done();const m16=(performance.now()-t0)/8;
  let N=8192;for(const n of NOPT){const K=Math.max(n<=16384?4:n<=65536?6:8,Math.ceil(n*n/2e9));const pred=m16*(n/16384)**2*(4/K)*0.85+m16*0.15*(n/16384);if(pred<=34)N=n;}
- g.reset(N,{});setN(N);resetLog();$('boot').hidden=true;
- $('npart').onchange=()=>{const n=+$('npart').value;if(sys.active)exitSystem();g.reset(n,{});setN(n);resetLog();setFollow(-1);pickCache=null;};
- $('reset').onclick=()=>{if(sys.active)exitSystem();g.reset(g.N,{});resetLog();setFollow(-1);pickCache=null;};
+ g.reset(N,{seed});setN(N);resetLog();showSeed();addLog(0,'Seme '+seed);$('boot').hidden=true;
+ $('npart').onchange=()=>{const n=+$('npart').value;if(sys.active)exitSystem();clearSel();g.reset(n,{seed});setN(n);resetLog();setFollow(-1);pickCache=null;};
+ $('reset').onclick=()=>{seed=Math.floor(Math.random()*1e9);newUniverse();};
  requestAnimationFrame(gpuFrame);}
 async function gpuFrame(now){if(g.lost)return;
  if(spin&&!userTouched&&cam.follow<0&&!sys.active)cam.yaw+=0.0015;
  const t0=performance.now();let n=0;
  if(run){n=turbo?stepsPF:Math.max(1,Math.min(stepsPF,speed));g.step(n,mode);}
  if(cam.follow>=0&&cam.ft){for(let k=0;k<3;k++)cam.t[k]+=(cam.ft[k]-cam.t[k])*0.12;}
+ if(cam.fly){cam.D=Math.exp(Math.log(cam.D)+(Math.log(cam.fly.D)-Math.log(cam.D))*0.08);if(Math.abs(Math.log(cam.D/cam.fly.D))<0.02){cam.D=cam.fly.D;cam.fly=null;}}
  const galaxyVisible=!sys.active||sys.alpha<1;
  const doRender=galaxyVisible&&(!turbo||now-lastRender>400);
  if(doRender){lastRender=now;g.prep(mode);const {vp,f}=viewProj();const d=dpr(),dens=Math.sqrt(16384/g.N);
-  g.render(new Float32Array(vp),{dm:showDM,px:1.25*d,cloudA:cloud*0.3*Math.cbrt(16384/g.N),cloudK:2.4*f,cloudMax:90*d,ptA:Math.max(0.3,Math.min(0.95,0.95*dens))});}
+  g.render(new Float32Array(vp),{dm:showDM,px:1.25*d,cloudA:cloud*0.3*Math.cbrt(16384/g.N),cloudK:2.4*f,cloudMax:60*d,ptA:Math.max(0.3,Math.min(0.95,0.95*dens))});}
  else if(sys.active&&now-lastRender>1000){lastRender=now;g.prep(mode);}
  await g.done();const dt=performance.now()-t0;
  if(n>0){msStep=msStep?msStep*0.85+(dt/n)*0.15:dt/n;const tgt=turbo?140:24;stepsPF=Math.max(1,Math.min(400,Math.round(stepsPF*Math.min(1.5,Math.max(0.6,tgt/Math.max(1,dt))))));}
@@ -1012,7 +1058,7 @@ function hsh(i,k){let v=(i*2654435761+k*40503)>>>0;v^=v>>>15;v=Math.imul(v,22468
 async function enterSystem(manual){if(sys.building||sys.active)return;sys.building=true;const arr=await pickData();sys.building=false;if(!arr)return;
  if(!buildSystem(arr,true)){if(manual)toast('Qui non c\'è una stella accesa: segui un punto luminoso o un pianeta');cam.D=Math.max(cam.D,ENTER_D*1.5);sys.cool=performance.now()+2500;return;}
  sys.active=true;sys.alpha=0;sys.focus=-1;sys.t0=performance.now();sys.zoom=sys.fit;$('sysc').hidden=false;$('era').textContent='Sistema planetario';addLog(last?last.t:0,'Ingresso nel sistema della stella #'+sys.center);}
-function exitSystem(){sys.active=false;sys.focus=-1;$('sysc').hidden=true;$('syspanel').hidden=true;cam.D=Math.max(cam.D,ENTER_D*3);sys.cool=performance.now()+1500;}
+function exitSystem(){sys.active=false;sel=null;sys.focus=-1;$('sysc').hidden=true;$('syspanel').hidden=true;cam.D=Math.max(cam.D,ENTER_D*3);sys.cool=performance.now()+1500;}
 function buildSystem(arr,first){const N=arr.length/STRIDE;let c=cam.t;if(!first&&sys.star)c=sys.star.pos;
  let best=-1,bl=0;for(let i=0;i<N;i++){const k=i*STRIDE,L=arr[k+7];if(L<=0)continue;const d2=(arr[k]-c[0])**2+(arr[k+1]-c[1])**2+(arr[k+2]-c[2])**2;if(d2>25)continue;if(L>bl||(!first&&i===sys.center)){bl=L;best=i;if(!first&&i===sys.center)break;}}
  if(best<0){if(!first&&sys.star){sys.gone=true;}return false;}
@@ -1028,7 +1074,7 @@ function buildSystem(arr,first){const N=arr.length/STRIDE;let c=cam.t;if(!first&
  const prevFocus=sys.focus>=0&&sys.planets[sys.focus]?sys.planets[sys.focus].i:-1;
  sys.star={pos:P,L:Lrel,M,cls:sp[0],col:sp[2],T:sp[3],Z:Zs/Math.max(1,ns),n:ns};sys.center=best;sys.planets=planets;sys.gone=false;
  const amax=Math.max(1.2*Math.sqrt(Lrel),...planets.map(p=>p.a));sys.fit=Math.min(cv.width,cv.height)*0.42/amax;if(first)sys.zoom=sys.fit;
- sys.focus=prevFocus>=0?planets.findIndex(p=>p.i===prevFocus):-1;sys.lastBuild=performance.now();if(first){setFollow(best,'stella');}
+ sys.focus=prevFocus>=0?planets.findIndex(p=>p.i===prevFocus):-1;if(first&&pendingPlanet>=0){const f=planets.findIndex(p=>p.i===pendingPlanet);if(f>=0){sys.focus=f;}pendingPlanet=-1;}sys.lastBuild=performance.now();if(first){setFollow(best,'stella');}
  return true;}
 const texCache=new Map();
 function noiseTex(seed,type,life){const key=seed+type+(life?1:0);if(texCache.has(key))return texCache.get(key);const W=256,H=128,c=document.createElement('canvas');c.width=W;c.height=H;const x=c.getContext('2d'),img=x.createImageData(W,H);
@@ -1098,24 +1144,27 @@ function startCPU(reason){$('boot').innerHTML=`<div><b>WebGPU non disponibile</b
  setTimeout(()=>{$('boot').hidden=true;},6000);
  const nc=$('c2');nc.hidden=false;ctx2=nc.getContext('2d');
  const src=$('cpucode').textContent;cpu=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));cpu.onmessage=e=>{cpuSnap=e.data;if(cpuSnap.comp)onObjComp(cpuSnap.comp,true);};cpu.postMessage({cmd:'init',n:3000});
+ $('seed').disabled=true;$('seedGo').disabled=true;$('seedNote').textContent='Il seme funziona solo nella versione GPU.';
  $('npart').innerHTML='<option>3.000</option>';$('npart').disabled=true;$('count').textContent='3.000 particelle (CPU)';
  $('reset').onclick=()=>{if(sys.active)exitSystem();cpu.postMessage({cmd:'init',n:3000});resetLog();setFollow(-1);};resetLog();
  requestAnimationFrame(cpuFrame);}
+const spr=new Map();function spriteOf(col){let c=spr.get(col);if(c)return c;c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d'),gr=x.createRadialGradient(32,32,0,32,32,32);gr.addColorStop(0,col+'55');gr.addColorStop(0.4,col+'22');gr.addColorStop(1,col+'00');x.fillStyle=gr;x.fillRect(0,0,64,64);spr.set(col,c);return c;}
 function cpuFrame(now){const c=$('c2'),d=dpr();if(c.width!==cv.width||c.height!==cv.height){c.width=cv.width;c.height=cv.height;}
  if(spin&&!userTouched&&cam.follow<0&&!sys.active)cam.yaw+=0.0015;
+ if(cam.fly){cam.D=Math.exp(Math.log(cam.D)+(Math.log(cam.fly.D)-Math.log(cam.D))*0.08);if(Math.abs(Math.log(cam.D/cam.fly.D))<0.02){cam.D=cam.fly.D;cam.fly=null;}}
  const W=c.width,H=c.height;
  if(cpuSnap&&(!sys.active||sys.alpha<1)){const s=cpuSnap.st,b=cpuSnap.buf,N=cpuSnap.N;if(cam.follow>=0){const k=cam.follow*20;cam.t=[b[k],b[k+1],b[k+2]];}
   ctx2.globalCompositeOperation='source-over';ctx2.fillStyle='#04050a';ctx2.fillRect(0,0,W,H);
   const {vp,f}=viewProj();ctx2.globalCompositeOperation='lighter';const T=['#3c1459','#961f33','#dc5029','#ff963c','#ffd796','#fff8eb','#cddeff','#96b4ff'],Z=['#6e8cd6','#a0b0e0','#d6bf8c','#f58c45','#eb5029'];
   for(let i=0;i<N;i++){const k=i*20,q=project(vp,b[k],b[k+1],b[k+2]);if(!q)continue;const col=mode===0?T[Math.max(0,Math.min(7,Math.round((Math.log10(Math.max(b[k+4],1e-5))+5)/3.6*7)))]:Z[Math.max(0,Math.min(4,Math.round(Math.min(1,Math.sqrt(b[k+5]/.15))*4)))];
-   if(cloud>0){const r=Math.min(60,b[k+3]*2.4*f*H/2/q[2]);if(r>1.5){ctx2.globalAlpha=cloud*0.05;ctx2.fillStyle=col;ctx2.beginPath();ctx2.arc(q[0],q[1],r,0,6.283);ctx2.fill();}}
+   if(cloud>0){const r=Math.min(36*d,b[k+3]*2.4*f*H/2/q[2]);if(r>1.5){ctx2.globalAlpha=cloud*0.35;ctx2.drawImage(spriteOf(col),q[0]-r,q[1]-r,2*r,2*r);}}
    ctx2.globalAlpha=0.85;ctx2.fillStyle=b[k+7]>0?'#fff3c4':col;const sz=b[k+7]>0?4*d:1.6*d;ctx2.fillRect(q[0]-sz/2,q[1]-sz/2,sz,sz);
-   if(b[k+8]>0){ctx2.globalAlpha=1;ctx2.strokeStyle=b[k+8]===3?'#7af0c4':b[k+8]===2?'#6fd3ff':'#c98a4b';ctx2.lineWidth=d;ctx2.beginPath();ctx2.arc(q[0],q[1],5*d,0,6.283);ctx2.stroke();}}
+   }
   ctx2.globalAlpha=1;}
  if(cpuSnap){const s=cpuSnap.st;if(!last||last.t!==s.t)onStats(s);$('perf').textContent=`Processore · 3.000 particelle · ${s.ms.toFixed(1)} ms per passo`;}
  sysTick(now);hudTick();requestAnimationFrame(cpuFrame);}
 // ================= avvio =================
-window.__genesi={cam,sys,pickData,setFollow,enterSystem,sysPanel,get g(){return g;}};
+window.__genesi={cam,sys,pickData,setFollow,enterSystem,sysPanel,nextGalaxy,get sel(){return sel;},get g(){return g;}};
 renderPT(true);
 (async()=>{try{if(!navigator.gpu)throw new Error('Il browser non supporta WebGPU');await startGPU();}catch(err){console.warn(err);g=null;startCPU(err.message||'Errore GPU');}})();
 })();

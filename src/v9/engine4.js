@@ -206,6 +206,39 @@ fn rdir(i:u32,s:u32)->vec3<f32>{let c=rnd(i,s,41u)*2.0-1.0;let a=rnd(i,s,43u)*6.
   else if(k==101u){atomicMax(&st[k],v);}
   else if((k>=4u&&k<=10u)||(k>=32u&&k<=34u)){let old=atomicAdd(&st[k],v);if(old>0xffffffffu-v){atomicAdd(&st[select(84u+k,k+64u,k>=32u)],1u);}}
   else{atomicAdd(&st[k],v);}}}}`;
+const WG_DUST=COMMON+`
+@group(0) @binding(1) var<storage,read> pos:array<vec4<f32>>;
+@group(0) @binding(2) var<storage,read> vel:array<vec4<f32>>;
+@group(0) @binding(3) var<storage,read> grid:array<u32>;
+@group(0) @binding(4) var<storage,read> dens:array<vec4<f32>>;
+@group(0) @binding(5) var<storage,read> comp:array<vec4<f32>>;
+@group(0) @binding(6) var<storage,read> fout:array<vec4<f32>>;
+@group(0) @binding(7) var<storage,read> far:array<vec4<f32>>;
+@group(0) @binding(8) var<storage,read_write> dust:array<vec4<f32>>;
+const MAXIT:u32=600u;
+fn hu(x:u32)->u32{var v=x*747796405u+2891336453u;v=((v>>((v>>28u)+4u))^v)*277803737u;return (v>>22u)^v;}
+fn hf(x:u32)->f32{return f32(hu(x))*(1.0/4294967295.0);}
+// grani di polvere: fluido accoppiato al gas per attrito (regime di Epstein), con gravita', pressione di radiazione,
+// formazione nel gas freddo ricco di metalli e distruzione per sputtering nel gas caldissimo
+@compute @workgroup_size(64) fn main(@builtin(global_invocation_id) g:vec3<u32>){let k=g.x;if(k>=p.N*2u){return;}
+ var dp=dust[2u*k];var dv=dust[2u*k+1u];let sd=hu(k*9781u+p.step*6271u);
+ if(dv.w<=0.0){let j=hu(sd)%p.N;let D=comp[4u*j+3u];if(D.x!=0.0){return;}let A=comp[4u*j];let Bj=comp[4u*j+1u];let Z=max(0.0,1.0-A.x-A.y);let uj=vel[j].w;
+  if(Z>0.002&&uj<0.004&&Bj.w<=p.lumStar&&hf(sd+1u)<min(0.05,Z*1.5)){let pj=pos[j];let off=vec3<f32>(hf(sd+2u),hf(sd+3u),hf(sd+4u))-0.5;
+   let a=exp(mix(log(0.2),log(2.0),hf(sd+5u)));dust[2u*k]=vec4<f32>(pj.xyz+off*pj.w*0.9,0.0);dust[2u*k+1u]=vec4<f32>(vel[j].xyz,a);}
+  return;}
+ let pi=dp.xyz;let i=0xffffffffu;
+ var ws=0.0;var vg=vec3<f32>(0.0);var rho=0.0;var uu=0.0;var gs=vec3<f32>(0.0);var gw=0.0;var gany=vec3<f32>(0.0);var ga=0.0;var ar=vec3<f32>(0.0);var il=0.0;
+ ${NBLOOP(`let D=comp[4u*j+3u];let r=sqrt(r2);var w=max(0.0,1.0-r/p.CS);w=w*w;let fa=fout[5u*j].xyz+far[j].xyz;
+  if(D.x==0.0){ws+=w;vg+=vel[j].xyz*w;rho+=dens[j].x*w;uu+=vel[j].w*w;let L=comp[4u*j+1u].w;if(L>p.lumStar){let rr=max(r2,0.05);il+=L/rr;ar-=d/sqrt(rr)*(L/rr);}}
+  else if(D.x<=4.0){gs+=fa*w;gw+=w;}gany+=fa*w;ga+=w;`)}
+ let cen=vec3<f32>(p.cx,p.cy,p.cz);var gacc=p.Lam*(pi-cen);if(gw>0.0){gacc+=gs/gw;}else if(ga>0.0){gacc+=gany/ga;}
+ let a=dv.w;var vn=dv.xyz+gacc*p.DT;
+ if(ws>1e-6){vg/=ws;rho/=ws;let u=uu/ws;let cs=sqrt(1.111*max(u,1e-6));
+  if(u>0.012&&hf(sd+7u)<min(1.0,rho*p.DT*0.5/a)){dust[2u*k+1u]=vec4<f32>(0.0);return;}
+  let ts=0.02*a/max(rho*cs*1.6,1e-6);let f=exp(-p.DT/ts);var arr=ar*(0.5/a);let am=length(arr);if(am>0.05){arr*=0.05/am;}
+  vn=vg+(dv.xyz-vg)*f+gacc*p.DT*f+arr*min(ts,p.DT*4.0)*(1.0-f);}
+ let sp=length(vn);if(sp>p.VMAX){vn*=p.VMAX/sp;}
+ dust[2u*k]=vec4<f32>(pi+vn*p.DT,il);dust[2u*k+1u]=vec4<f32>(vn,a);}`;
 const WG_STCLR=COMMON+`
 @group(0) @binding(1) var<storage,read_write> st:array<atomic<u32>>;
 @compute @workgroup_size(${NST}) fn main(@builtin(local_invocation_index) l:u32){if(p.N==0u){return;}if(l<16u||(l>=32u&&l<36u)||l>=40u){atomicStore(&st[l],0u);}}`;
@@ -295,6 +328,16 @@ const OFF=vec4<f32>(2.,2.,2.,1.);
  else if(b.w>0.0&&v.q2>0.5){let Bf=min(2e4,(b.w/0.004)*pow(v.q3/max(c.w,1e-3),2.0)*0.5);let sz=clamp(2.0+2.2*log2(1.0+Bf),2.0,16.0);o.pos=place(c,uv,v.px*sz);o.uv=uv;o.col=vec4<f32>(b.rgb*Bf,1.0);o.ex=vec4<f32>(3.0,Bf,sz,0.);return o;}
  else if(b.w>0.0){rpx=v.px*clamp(2.0+sqrt(b.w)*14.0,2.0,6.0);col=select(vec4<f32>(1.0,0.93,0.75,1.0),vec4<f32>(b.rgb,1.0),v.q2>0.5);star=1.0;}
  o.pos=place(c,uv,rpx);o.uv=uv;o.col=col;o.ex=vec4<f32>(star,0.,0.,0.);return o;}
+@vertex fn vdp(@builtin(vertex_index) vi:u32,@location(0) a:vec4<f32>,@location(1) b:vec4<f32>)->O{var o:O;let uv=corner(vi);
+ if(b.w<=0.0||v.fon>0.5){o.pos=OFF;return o;}let c=v.vp*vec4<f32>(a.xyz,1.0);if(c.w<=0.0){o.pos=OFF;return o;}
+ var col=vec3<f32>(0.0);
+ if(v.q2>0.5){let bd=u32(v.q2+0.5)-1u;let I=a.w;
+  if(bd==0u){col=vec3<f32>(0.55,0.7,1.0)*I*0.004*b.w*b.w;}
+  else if(bd==1u){let td=clamp(log2(1.0+I*4.0)*0.25,0.0,1.0);col=mix(vec3<f32>(0.8,0.15,0.05),vec3<f32>(1.0,0.7,0.4),td)*(I*0.01+0.0015)*b.w;}
+  else{o.pos=OFF;return o;}
+  if(max(col.r,max(col.g,col.b))<1e-5){o.pos=OFF;return o;}}
+ else{col=vec3<f32>(0.5,0.32,0.18)*0.3;}
+ o.pos=place(c,uv,v.px*0.9);o.uv=uv;o.col=vec4<f32>(col,1.0);o.ex=vec4<f32>(0.);return o;}
 @fragment fn fpt(i:O)->@location(0) vec4<f32>{let r2=dot(i.uv,i.uv);if(r2>1.0){discard;}
  if(i.ex.x>2.5){let r=sqrt(r2);let q=r*i.ex.z*1.9;let core=exp(-q*q*0.5);let halo=0.05*exp(-q*0.8)*min(1.0,i.ex.y*0.3);var spk=0.0;
   if(i.ex.y>4.0){let ax=abs(i.uv.x)*i.ex.z*1.9;let ay=abs(i.uv.y)*i.ex.z*1.9;spk=(exp(-ay*ay*1.5)*exp(-ax*0.45)+exp(-ax*ax*1.5)*exp(-ay*0.45))*0.18*min(1.0,i.ex.y/40.0);}
@@ -316,7 +359,8 @@ struct VO{@builtin(position) p:vec4<f32>,@location(0) uv:vec2<f32>};
 @fragment fn fdown(i:VO)->@location(0) vec4<f32>{let ts=1.0/vec2<f32>(textureDimensions(src));var c=vec3<f32>(0.);for(var y=-1;y<=1;y++){for(var x=-1;x<=1;x++){c+=textureSampleLevel(src,smp,i.uv+vec2<f32>(f32(x),f32(y))*ts*1.5,0.).rgb;}}c/=9.0;let l=max(c.r,max(c.g,c.b));return vec4<f32>(c*max(l-pu.w,0.)/max(l,1e-4),1.);}
 @fragment fn fblur(i:VO)->@location(0) vec4<f32>{let ts=pu.xy/vec2<f32>(textureDimensions(src));var w=array<f32,5>(0.227,0.194,0.121,0.054,0.016);var c=textureSampleLevel(src,smp,i.uv,0.).rgb*w[0];for(var k=1;k<5;k++){let o=ts*f32(k)*1.6;c+=(textureSampleLevel(src,smp,i.uv+o,0.).rgb+textureSampleLevel(src,smp,i.uv-o,0.).rgb)*w[k];}return vec4<f32>(c,1.);}
 @fragment fn fcomp(i:VO)->@location(0) vec4<f32>{var c=(textureSampleLevel(src,smp,i.uv,0.).rgb+textureSampleLevel(blm,smp,i.uv,0.).rgb*0.15)*pu.z;
- c=clamp((c*(2.51*c+0.03))/(c*(2.43*c+0.59)+0.14),vec3<f32>(0.),vec3<f32>(1.));let n=fract(sin(dot(i.p.xy,vec2<f32>(12.9898,78.233)))*43758.5453)/255.0;return vec4<f32>(c+vec3<f32>(0.012,0.015,0.03)*(1.0-c)+n,1.);}`;
+ if(pu.y>0.5){let l=max(c.r,max(c.g,c.b));let k=12.0;let s2=log(k*l+sqrt(k*k*l*l+1.0))/log(k+sqrt(k*k+1.0));c=c*(min(s2,1.2)/max(l,1e-6));c=min(c,vec3<f32>(1.0));}
+ else{c=clamp((c*(2.51*c+0.03))/(c*(2.43*c+0.59)+0.14),vec3<f32>(0.),vec3<f32>(1.));}let n=fract(sin(dot(i.p.xy,vec2<f32>(12.9898,78.233)))*43758.5453)/255.0;return vec4<f32>(c+vec3<f32>(0.012,0.015,0.03)*(1.0-c)+n,1.);}`;
 class GenesisGPU{
  static async create(canvas,opts){const g=new GenesisGPU();await g.init(canvas,opts||{});return g;}
  async init(canvas,o){
@@ -328,7 +372,7 @@ class GenesisGPU{
   this.lost=false;this.dev.lost.then(i=>{this.lost=true;this.onlost&&this.onlost(i);});
   this.canvas=canvas;if(canvas){this.ctx=canvas.getContext('webgpu');this.fmt=navigator.gpu.getPreferredCanvasFormat();this.ctx.configure({device:this.dev,format:this.fmt,alphaMode:'opaque'});}
   const d=this.dev,mk=(code)=>d.createShaderModule({code});
-  const src={clear:WG_CLEAR,hash:WG_HASH,dens:WG_DENS,force:WG_FORCE,far:WG_FAR,integ:WG_INTEG,stclr:WG_STCLR,farsw:WG_FARSW,prep:WG_PREP};
+  const src={clear:WG_CLEAR,hash:WG_HASH,dens:WG_DENS,force:WG_FORCE,far:WG_FAR,integ:WG_INTEG,stclr:WG_STCLR,farsw:WG_FARSW,prep:WG_PREP,dust:WG_DUST};
   this.pipes={};for(const k in src){this.pipes[k]=d.createComputePipeline({layout:'auto',compute:{module:mk(src[k]),entryPoint:'main'}});}
   if(canvas){const rm=mk(RS);const vb=[{arrayStride:80,stepMode:'instance',attributes:[0,1,2,4].map((s,k)=>({shaderLocation:k,offset:s*16,format:'float32x4'}))}];
    const add={color:{srcFactor:'one',dstFactor:'one',operation:'add'},alpha:{srcFactor:'one',dstFactor:'one',operation:'add'}};
@@ -337,7 +381,10 @@ class GenesisGPU{
    this.rp={cloud:rp('vcloud','fcloud',add,false),pt:rp('vpt','fpt',add,false),ring:rp('vring','fring',over,true)};
    const mul={color:{srcFactor:'zero',dstFactor:'one-minus-src-alpha',operation:'add'},alpha:{srcFactor:'zero',dstFactor:'one',operation:'add'}};
    const rpH=(vs,fs,bl,dw)=>d.createRenderPipeline({layout:'auto',vertex:{module:rm,entryPoint:vs,buffers:vb},fragment:{module:rm,entryPoint:fs,targets:[{format:'rgba16float',blend:bl}]},primitive:{topology:'triangle-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:dw,depthCompare:'less'}});
-   this.rpH={cloud:rpH('vcloud','fcloud',add,false),pt:rpH('vpt','fpt',add,false),ring:rpH('vring','fring',over,true),dust:rpH('vdust','fdust',mul,false)};
+   const vbD=[{arrayStride:32,stepMode:'instance',attributes:[{shaderLocation:0,offset:0,format:'float32x4'},{shaderLocation:1,offset:16,format:'float32x4'}]}];
+   const rpD=(fmt)=>d.createRenderPipeline({layout:'auto',vertex:{module:rm,entryPoint:'vdp',buffers:vbD},fragment:{module:rm,entryPoint:'fpt',targets:[{format:fmt,blend:add}]},primitive:{topology:'triangle-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:'less'}});
+   this.rp.dp=rpD(this.fmt);
+   this.rpH={dp:rpD('rgba16float'),cloud:rpH('vcloud','fcloud',add,false),pt:rpH('vpt','fpt',add,false),ring:rpH('vring','fring',over,true),dust:rpH('vdust','fdust',mul,false)};
    const pm=mk(PS);const pp=(fs,fmt)=>d.createRenderPipeline({layout:'auto',vertex:{module:pm,entryPoint:'vfs'},fragment:{module:pm,entryPoint:fs,targets:[{format:fmt}]},primitive:{topology:'triangle-list'}});
    this.pp={down:pp('fdown','rgba16float'),blur:pp('fblur','rgba16float'),comp:pp('fcomp',this.fmt)};this.smp=d.createSampler({magFilter:'linear',minFilter:'linear',addressModeU:'clamp-to-edge',addressModeV:'clamp-to-edge'});
    this.pub=[0,1,2].map(()=>d.createBuffer({size:16,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST}));
@@ -375,11 +422,11 @@ class GenesisGPU{
   const S=GPUBufferUsage.STORAGE,CD=GPUBufferUsage.COPY_DST,CS=GPUBufferUsage.COPY_SRC,VX=GPUBufferUsage.VERTEX;
   const mkb=(bytes,us,data)=>{const b=d.createBuffer({size:bytes,usage:us,mappedAtCreation:!!data});if(data){new Float32Array(b.getMappedRange()).set(data);b.unmap();}return b;};
   this.b={pos:mkb(N*16,S|CD|CS,pos),vel:mkb(N*16,S|CD|CS,vel),comp:mkb(N*64,S|CD|CS,comp),bio:mkb(N*32,S|CD|CS,bio),dens:mkb(N*16,S|CS),fout:mkb(N*80,S),
-   far:mkb(N*16,S|CD),facc:mkb(N*16,S|CD),grid:mkb((this.TB+N)*4,S),st:mkb(NST*4,S|CS|CD),rb:mkb(N*80,S|VX|CS),
+   far:mkb(N*16,S|CD),facc:mkb(N*16,S|CD),grid:mkb((this.TB+N)*4,S),st:mkb(NST*4,S|CS|CD),rb:mkb(N*80,S|VX|CS),dust:mkb(N*64,S|VX),
    stRead:d.createBuffer({size:NST*4,usage:GPUBufferUsage.MAP_READ|CD}),pick:d.createBuffer({size:N*80,usage:GPUBufferUsage.MAP_READ|CD}),fol:d.createBuffer({size:144,usage:GPUBufferUsage.MAP_READ|CD})};
   const bg=(pipe,list)=>d.createBindGroup({layout:this.pipes[pipe].getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:this.ub}},...list.map((n,k)=>({binding:k+1,resource:{buffer:this.b[n]}}))]});
   this.bg={clear:bg('clear',['grid']),hash:bg('hash',['pos','grid','comp']),dens:bg('dens',['pos','vel','grid','dens','comp']),force:bg('force',['pos','vel','grid','dens','comp','bio','fout']),
-   far:bg('far',['pos','comp','facc']),integ:bg('integ',['pos','vel','comp','dens','bio','fout','far','st']),stclr:bg('stclr',['st']),farsw:bg('farsw',['facc','far']),prep:bg('prep',['pos','vel','comp','bio','dens','rb'])};
+   far:bg('far',['pos','comp','facc']),integ:bg('integ',['pos','vel','comp','dens','bio','fout','far','st']),stclr:bg('stclr',['st']),farsw:bg('farsw',['facc','far']),prep:bg('prep',['pos','vel','comp','bio','dens','rb']),dust:bg('dust',['pos','vel','grid','dens','comp','fout','far','dust'])};
   this.t=0;this.farChunk=0;this.stats=null;this.statBusy=false;this.pickBusy=false;this.folBusy=false;this.cm=[0,0,0];
   this.u32[UF.indexOf('j0')]=0;this.u32[UF.indexOf('j1')]=N;d.queue.writeBuffer(this.ub,0,this.uarr);
   const e=d.createCommandEncoder();this.pass(e,'far',Math.ceil(N/256));this.pass(e,'farsw',Math.ceil(N/64));d.queue.submit([e.finish()]);
@@ -394,7 +441,7 @@ class GenesisGPU{
    const e=d.createCommandEncoder();
    this.pass(e,'clear',Math.ceil(this.TB/256));this.pass(e,'hash',W64);this.pass(e,'dens',W64);this.pass(e,'force',W64);
    if(j1>j0)this.pass(e,'far',Math.ceil(N/256));
-   this.pass(e,'stclr',1);this.pass(e,'integ',W64);
+   this.pass(e,'stclr',1);this.pass(e,'integ',W64);this.pass(e,'dust',Math.ceil(2*N/64));
    this.farChunk++;if(this.farChunk*this.chunk>=N){this.farChunk=0;this.pass(e,'farsw',W64);}
    d.queue.submit([e.finish()]);}
  }
@@ -410,6 +457,7 @@ class GenesisGPU{
   rp.setPipeline(this.rp.ring);rp.setBindGroup(0,this.rbg.ring);rp.draw(6,this.N);
   if(o.cloudA>0){rp.setPipeline(this.rp.cloud);rp.setBindGroup(0,this.rbg.cloud);rp.draw(6,this.N);}
   rp.setPipeline(this.rp.pt);rp.setBindGroup(0,this.rbg.pt);rp.draw(6,this.N);
+  rp.setVertexBuffer(0,this.b.dust);rp.setPipeline(this.rp.dp);rp.setBindGroup(0,this.rbg.dp);rp.draw(6,this.N*2);
   rp.end();d.queue.submit([e.finish()]);}
  ensurePost(tw,th){const d=this.dev;if(this.post&&this.post.w===tw&&this.post.h===th)return this.post;if(this.post){this.post.hdr.destroy();this.post.a.destroy();this.post.b.destroy();}
   const U=GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING;const qw=Math.max(1,tw>>2),qh=Math.max(1,th>>2);
@@ -418,10 +466,11 @@ class GenesisGPU{
   P.gDown=bg(this.pp.down,P.hdr,this.pub[0]);P.gH=bg(this.pp.blur,P.a,this.pub[1]);P.gV=bg(this.pp.blur,P.b,this.pub[2]);P.gComp=bg(this.pp.comp,P.hdr,this.pub[0],P.a);
   return this.post=P;}
  renderHDR(e,o,tex,tw,th){const d=this.dev,P=this.ensurePost(tw,th);const ex=o.exposure||1;
-  d.queue.writeBuffer(this.pub[0],0,new Float32Array([0,0,ex,1.5]));d.queue.writeBuffer(this.pub[1],0,new Float32Array([1,0,0,0]));d.queue.writeBuffer(this.pub[2],0,new Float32Array([0,1,0,0]));
+  d.queue.writeBuffer(this.pub[0],0,new Float32Array([0,o.stretch?1:0,ex,1.5]));d.queue.writeBuffer(this.pub[1],0,new Float32Array([1,0,0,0]));d.queue.writeBuffer(this.pub[2],0,new Float32Array([0,1,0,0]));
   const rp=e.beginRenderPass({colorAttachments:[{view:P.hdr.createView(),clearValue:{r:0,g:0,b:0,a:1},loadOp:'clear',storeOp:'store'}],depthStencilAttachment:{view:this.depth.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'discard'}});
   rp.setVertexBuffer(0,this.b.rb);rp.setPipeline(this.rpH.ring);rp.setBindGroup(0,this.rbgH.ring);rp.draw(6,this.N);
   rp.setPipeline(this.rpH.pt);rp.setBindGroup(0,this.rbgH.pt);rp.draw(6,this.N);
+  rp.setVertexBuffer(0,this.b.dust);rp.setPipeline(this.rpH.dp);rp.setBindGroup(0,this.rbgH.dp);rp.draw(6,this.N*2);rp.setVertexBuffer(0,this.b.rb);
   if(o.cloudA>0){rp.setPipeline(this.rpH.dust);rp.setBindGroup(0,this.rbgH.dust);rp.draw(6,this.N);rp.setPipeline(this.rpH.cloud);rp.setBindGroup(0,this.rbgH.cloud);rp.draw(6,this.N);}
   rp.end();
   const pass=(view,pl,g)=>{const r=e.beginRenderPass({colorAttachments:[{view,clearValue:{r:0,g:0,b:0,a:1},loadOp:'clear',storeOp:'store'}]});r.setPipeline(pl);r.setBindGroup(0,g);r.draw(3);r.end();};

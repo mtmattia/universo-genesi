@@ -25,7 +25,7 @@ Apri `index.html` in un browser (nessuna installazione, nessun server). La versi
 
 - **Seme**: ogni universo nasce da un numero. Stesso seme, stesso Big Bang. Il link con `#s` seguito dal numero (per esempio `index.html#s4242`) apre sempre quell'universo.
 - **Tocca una galassia** per selezionarla: la camera la centra e la inquadra in circa un terzo della vista. *Prossima galassia ›* passa alla successiva.
-- **Tocca una stella, un pianeta o un buco nero**: il tocco preferisce sempre gli oggetti alle nubi di gas. La camera si aggancia e una **vista da sonda** mostra l'oggetto intero da vicino, che reagisce ai dati simulati: luminosità, fase (gigante, spegnimento), supernova, accrescimento del buco nero.
+- **Tocca una stella, un pianeta o un buco nero**: il tocco preferisce sempre gli oggetti alle nubi di gas. La camera si aggancia e una **vista da sonda** mostra l'oggetto intero da vicino, renderizzato in 3D pixel per pixel su WebGL2: le stelle hanno granulazione convettiva (celle giganti nelle giganti rosse), oscuramento al bordo, macchie, facole, corona e protuberanze, con il colore di corpo nero della loro temperatura; i pianeti sono illuminati dalla stella, con rilievi, oceani, nuvole, calotte polari, atmosfera, bande e tempeste nei giganti gassosi, crepe di lava incandescente; il buco nero ha disco di accrescimento con effetto Doppler, immagine del disco piegata dalla gravità, anello di fotoni e getti nei momenti di massima attività.
 - **Lock**: la selezione resta agganciata anche ruotando e zoomando, finché non premi *Esci*.
 - **Filtro per elemento** (versione GPU): tocca un elemento nella tavola periodica. La simulazione si ferma e restano visibili solo i punti più ricchi di quell'elemento (il 10% più ricco). Tocca uno di questi punti per centrarlo: la simulazione riparte su quell'oggetto.
 - **Colori**: *Realistico* (predefinito) colora le stelle per temperatura di corpo nero (rosse → blu), il gas ionizzato in rosa Hα o verde-azzurro dell'ossigeno, il gas neutro in blu, il gas freddo e polveroso in bruno, i pianeti con acqua in blu e quelli con vita in verde. *Temperatura* e *Composizione* restano disponibili.
@@ -35,7 +35,7 @@ Apri `index.html` in un browser (nessuna installazione, nessun server). La versi
 
 ## Limiti
 
-La relatività generale non è simulata: la gravità dei buchi neri è newtoniana e l'orizzonte è solo disegnato. Il seme fissa le condizioni iniziali: la stessa GPU riproduce lo stesso universo, ma l'evoluzione è caotica e su dispositivi diversi può divergere col tempo. Le leggi sono reali, le scale no: tempi e distanze sono compressi di molti ordini di grandezza e una particella rappresenta una massa enorme di gas. Le orbite nella vista del sistema sono ricostruite, non simulate punto per punto. L'origine della vita è una regola scelta, non derivata da leggi fisiche. Le abbondanze del Sistema Solare usate come riferimento vengono dalla tabella Kaye & Laby (atomi per Si = 1). Le quote s/r degli elementi pesanti sono approssimate. La vista da sonda è un disegno procedurale guidato dai dati della particella, non una simulazione della superficie. I colori realistici sono una mappa fisica approssimata (temperatura e composizione → righe di emissione), non uno spettro calcolato.
+La relatività generale non è simulata: la gravità dei buchi neri è newtoniana e l'orizzonte è solo disegnato. Il seme fissa le condizioni iniziali: la stessa GPU riproduce lo stesso universo, ma l'evoluzione è caotica e su dispositivi diversi può divergere col tempo. Le leggi sono reali, le scale no: tempi e distanze sono compressi di molti ordini di grandezza e una particella rappresenta una massa enorme di gas. Le orbite nella vista del sistema sono ricostruite, non simulate punto per punto. L'origine della vita è una regola scelta, non derivata da leggi fisiche. Le abbondanze del Sistema Solare usate come riferimento vengono dalla tabella Kaye & Laby (atomi per Si = 1). Le quote s/r degli elementi pesanti sono approssimate. La vista da sonda è un rendering procedurale guidato dai dati della particella (temperatura, fase, acqua, vita, accrescimento): la superficie non è simulata fisicamente. I colori realistici sono una mappa fisica approssimata (temperatura e composizione → righe di emissione), non uno spettro calcolato.
 
 ## Struttura
 
@@ -43,7 +43,7 @@ La relatività generale non è simulata: la gravità dei buchi neri è newtonian
 |---|---|
 | `index.html` | Versione 8 (vista da sonda, lock, filtro per elemento, colori realistici), file unico pronto all'uso |
 | `versioni/` | Tutte le versioni come file unici: v1 atomi, v2 nubi di gas, v3 universo sferico, v4 GPU, v5 materia oscura e buchi neri, v6 esplorabile con seme, v7 vista interna, v8 vista da sonda |
-| `src/v8/` | Sorgenti della v8: `engine4.js`, `page9.html`, `build9.py`, `elements.js`, `core4.js` |
+| `src/v8/` | Sorgenti della v8: `engine4.js`, `page9.html`, `probegl.js` (vista da sonda), `build9.py`, `elements.js`, `core4.js` |
 | `src/v7/` | Sorgenti della v7 (vista interna, camera fluida, buchi neri con profondità): `engine3.js`, `page8.html`, `build8.py` |
 | `src/v6/` | Sorgenti della v6: `engine3.js`, `page7.html`, `build7.py` |
 | `src/v5/` | Sorgenti della v5: `engine2.js` (motore con tipi di particella), `page6.html`, `build6.py` |

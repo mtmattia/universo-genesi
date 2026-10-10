@@ -1497,7 +1497,7 @@ function drawSystem(now){const c=$('sysc'),x=c.getContext('2d'),W=c.width,H=c.he
  x.lineWidth=d;for(const p of sys.planets){x.beginPath();x.ellipse(cx,cy,p.a*sc,p.a*sc*tl,0,0,6.283);x.strokeStyle=p.life?'rgba(122,240,196,.35)':'rgba(200,210,240,.16)';x.stroke();}
  const pos=sys.planets.map(p=>{const th=p.ph+sys.spin+6.283*yr/p.P;return{p,x:cx+Math.cos(th)*p.a*sc,y:cy+Math.sin(th)*p.a*sc*tl,back:Math.sin(th)<0,th};});
  const rs=(9+5*Math.log10(1+st.L))*d;
- const drawStar=()=>{const gr=x.createRadialGradient(cx,cy,0,cx,cy,rs*4);gr.addColorStop(0,st.col);gr.addColorStop(0.22,st.col);gr.addColorStop(0.3,'rgba(255,220,170,.35)');gr.addColorStop(1,'rgba(255,200,140,0)');x.fillStyle=gr;x.beginPath();x.arc(cx,cy,rs*4,0,6.283);x.fill();x.fillStyle='#fff';x.beginPath();x.arc(cx,cy,rs*0.75,0,6.283);x.fill();};
+ const drawStar=()=>{if(rs>=3&&pgInit()){const CB=camBasis(),ext=2.6;const img=pgRender(2*rs*ext,{uKind:0,uT:now/1000,uExt:ext,uSeed:pgHash(Math.round((st.pos||[0])[0]*100))*100,uAct:st.T>7500?0.05:0.4,uCol:bbRGB(st.T||5772),uCam:[...CB.x,...CB.y,...CB.z]});if(img){x.drawImage(img,cx-rs*ext,cy-rs*ext,2*rs*ext,2*rs*ext);return;}}const gr=x.createRadialGradient(cx,cy,0,cx,cy,rs*4);gr.addColorStop(0,st.col);gr.addColorStop(0.22,st.col);gr.addColorStop(0.3,'rgba(255,220,170,.35)');gr.addColorStop(1,'rgba(255,200,140,0)');x.fillStyle=gr;x.beginPath();x.arc(cx,cy,rs*4,0,6.283);x.fill();x.fillStyle='#fff';x.beginPath();x.arc(cx,cy,rs*0.75,0,6.283);x.fill();};
  const drawPlanet=(o,k)=>{const p=o.p,r=p.rad*d*Math.max(1,Math.min(3,sc/sys.fit));const col=PTYPE[p.type][1];const lx=cx-o.x,ly=cy-o.y,ln=Math.hypot(lx,ly)||1;
   const gr=x.createRadialGradient(o.x+lx/ln*r*0.45,o.y+ly/ln*r*0.45,r*0.1,o.x,o.y,r*1.05);gr.addColorStop(0,col);gr.addColorStop(1,'#05060c');x.fillStyle=gr;x.beginPath();x.arc(o.x,o.y,r,0,6.283);x.fill();
   if(p.life){x.strokeStyle='rgba(122,240,196,.9)';x.lineWidth=1.5*d;x.beginPath();x.arc(o.x,o.y,r+4*d,0,6.283);x.stroke();}
@@ -1509,10 +1509,13 @@ function drawSystem(now){const c=$('sysc'),x=c.getContext('2d'),W=c.width,H=c.he
  const raw=110*d/sc,pp=Math.pow(10,Math.floor(Math.log10(raw))),mm=raw/pp,nice=(mm<2?1:mm<5?2:5)*pp;x.strokeStyle='rgba(139,144,169,.9)';x.lineWidth=d;x.beginPath();x.moveTo(14*d,H-46*d);x.lineTo(14*d+nice*sc,H-46*d);x.stroke();
  x.fillStyle='rgba(139,144,169,.95)';x.font=`${11*d}px IBM Plex Mono, monospace`;x.fillText(nice.toLocaleString('it-IT')+' UA equivalenti',14*d,H-52*d);
  if(sys.focus>=0&&sys.planets[sys.focus]){const p=sys.planets[sys.focus],R=Math.min(W,H)*0.26,px=W*0.72,py=H*0.36;x.fillStyle='rgba(4,5,10,.55)';x.fillRect(0,0,W,H);
-  const tex=noiseTex(p.i,p.type,p.life),rot=(now/40)%256;x.save();x.beginPath();x.arc(px,py,R,0,6.283);x.clip();
+  let glOk=false;if(pgInit()){const PT={lava:0,hot:1,ocean:2,desert:3,cold:4,ice:5,giant:6}[p.type];const atm={lava:[.4,[1,.5,.2]],hot:[1.2,[1,.8,.5]],ocean:[1,[.35,.6,1]],desert:[.45,[1,.72,.5]],cold:[.15,[.7,.8,1]],ice:[.2,[.7,.85,1]],giant:[.8,(p.teq||200)<120?[.6,.8,1]:[1,.9,.75]]}[p.type]||[.3,[.7,.8,1]];
+   const CB=camBasis(),ext=1.12,lx=W/2-px,ly=-(H/2-py),ll=Math.hypot(lx,ly)||1;const img=pgRender(2*R*ext,{uKind:1,uT:now/1000,uExt:ext,uSeed:pgHash(p.i)*100,uPT:PT,uWat:p.wat||0,uBio:p.life?1:0,uTeq:p.teq||200,uAtm:atm[0],uAtmCol:atm[1],uIce:(p.teq||200)<120?1:0,uCam:[...CB.x,...CB.y,...CB.z],uL:[lx/ll*0.8,ly/ll*0.8,0.35]});
+   if(img){x.drawImage(img,px-R*ext,py-R*ext,2*R*ext,2*R*ext);glOk=true;}}
+  if(!glOk){const tex=noiseTex(p.i,p.type,p.life),rot=(now/40)%256;x.save();x.beginPath();x.arc(px,py,R,0,6.283);x.clip();
   const sx=rot,w1=Math.min(128,256-sx);x.drawImage(tex,sx,0,w1,128,px-R,py-R,2*R*w1/128,2*R);if(w1<128)x.drawImage(tex,0,0,128-w1,128,px-R+2*R*w1/128,py-R,2*R*(128-w1)/128,2*R);
   const sh=x.createRadialGradient(px-R*0.45,py-R*0.2,R*0.15,px,py,R*1.15);sh.addColorStop(0,'rgba(0,0,0,0)');sh.addColorStop(0.55,'rgba(0,0,0,0.15)');sh.addColorStop(1,'rgba(0,0,0,0.92)');x.fillStyle=sh;x.fillRect(px-R,py-R,2*R,2*R);x.restore();
-  if(p.type==='ocean'||p.type==='desert'||p.type==='giant'){x.strokeStyle=p.type==='giant'?'rgba(255,220,170,.35)':'rgba(120,180,255,.55)';x.lineWidth=3*d;x.beginPath();x.arc(px,py,R+1.5*d,Math.PI*0.55,Math.PI*1.5);x.stroke();}
+  if(p.type==='ocean'||p.type==='desert'||p.type==='giant'){x.strokeStyle=p.type==='giant'?'rgba(255,220,170,.35)':'rgba(120,180,255,.55)';x.lineWidth=3*d;x.beginPath();x.arc(px,py,R+1.5*d,Math.PI*0.55,Math.PI*1.5);x.stroke();}}
   sys.big={x:px,y:py,R};}else sys.big=null;}
 function sysPanel(){const el=$('syspanel');if(!sys.active||micro.active){el.hidden=true;return;}el.hidden=false;const st=sys.star;let html;
  if(sys.focus>=0&&sys.planets[sys.focus]){const p=sys.planets[sys.focus];

@@ -4,7 +4,7 @@ const PG_VS=`#version 300 es
 out vec2 vp;void main(){vec2 q=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2));vp=q*2.-1.;gl_Position=vec4(vp,0.,1.);}`;
 const PG_FS=`#version 300 es
 precision highp float;in vec2 vp;out vec4 o;
-uniform float uT,uExt,uKind,uSeed,uGiant,uAct,uDim,uPulse,uPx,uPT,uWat,uBio,uTeq,uAtm,uAcc,uIce;uniform vec3 uCol,uAtmCol;
+uniform float uT,uExt,uKind,uSeed,uGiant,uAct,uDim,uPulse,uPx,uPT,uWat,uBio,uTeq,uAtm,uAcc,uIce;uniform vec3 uCol,uAtmCol,uL,uBN;uniform mat3 uCam;
 uvec3 pcg3(uvec3 v){v=v*1664525u+1013904223u;v.x+=v.y*v.z;v.y+=v.z*v.x;v.z+=v.x*v.y;v^=v>>16u;v.x+=v.y*v.z;v.y+=v.z*v.x;v.z+=v.x*v.y;return v;}
 vec3 h3(vec3 p){return vec3(pcg3(uvec3(ivec3(floor(p))+32768)))*(1./4294967295.);}
 float h1(vec3 p){return h3(p).x;}
@@ -20,7 +20,7 @@ mat3 rX(float a){float c=cos(a),s=sin(a);return mat3(1,0,0,0,c,s,0,-s,c);}
 vec3 tm(vec3 c){return 1.-exp(-c);}
 // ---------------- stella ----------------
 vec3 starIn(vec2 p){float r2=dot(p,p);float z=sqrt(max(0.,1.-r2));vec3 n=vec3(p,z);
- vec3 q=rY(uT*.03+uSeed)*(rX(.35)*n);float lat=asin(clamp(q.y,-1.,1.));
+ vec3 q=rY(uT*.03+uSeed)*(rX(.35)*(uCam*n));float lat=asin(clamp(q.y,-1.,1.));
  float fr=mix(60.,3.2,uGiant);
  vec3 qd=q*fr+uSeed*7.+uGiant*1.6*vec3(fbm3(q*2.+1.),fbm3(q*2.+5.),fbm3(q*2.+9.));vec2 w=wor(qd,uT*mix(.5,.12,uGiant));float gran=smoothstep(.0,mix(.38,.6,uGiant),w.y-w.x);
  vec2 w2=wor(q*fr*2.6+3.3,uT*.8);float g2=smoothstep(.0,.3,w2.y-w2.x);
@@ -35,10 +35,10 @@ vec3 starIn(vec2 p){float r2=dot(p,p);float z=sqrt(max(0.,1.-r2));vec3 n=vec3(p,
  vec3 sc=pow(uCol,vec3(1.8));vec3 c=sc*I*ld*(1.+fac);c*=mix(vec3(1.),vec3(1.,.7,.48),pow(1.-mu,1.6)*.65);
  return c*1.25*uDim;}
 vec3 starOut(vec2 p){float r=length(p);float h=r-1.;float ang=atan(p.y,p.x);vec2 dir=p/r;
- float cor=exp(-h*mix(4.5,2.6,uGiant))*.45;float st=fbm(vec3(dir*2.5+uSeed,h*1.5-uT*.03));cor*=.45+1.1*st*st;
+ float cor=exp(-h*mix(4.5,2.6,uGiant))*.45;vec3 wd=uCam*vec3(dir,0.);float st=fbm(wd*2.5+vec3(uSeed,0.,h*1.5-uT*.03));cor*=.45+1.1*st*st;
  vec3 c=mix(uCol,vec3(1.),.3)*cor*uDim;
  c+=vec3(1.,.32,.22)*exp(-h*70.)*.9*uDim*(1.-.6*uGiant);
- float pn=fbm(vec3(dir*6.+uSeed*2.,h*9.-uT*.12));
+ float pn=fbm(wd*6.+vec3(uSeed*2.,0.,h*9.-uT*.12));
  float pr=smoothstep(.66,.74,pn)*exp(-h*mix(20.,8.,uGiant))*smoothstep(0.,.015,h)*(.3+uAct)*1.4;
  c+=vec3(1.,.28,.18)*pr*uDim;return c;}
 // ---------------- pianeta ----------------
@@ -61,12 +61,12 @@ vec3 surf(vec3 q,out float spec,out vec3 emis,out float cloud){spec=0.;emis=vec3
   emis=vec3(1.,.32,.04)*(smoothstep(.86,.97,lk)*1.8+smoothstep(.9,.98,lk2)*.8);}
  if(T!=6&&T!=0&&T!=1){float cap=mix(.97,.5,clamp((300.-uTeq)/90.,0.,1.));c=mix(c,vec3(.93,.96,1.),smoothstep(cap,cap+.06,abs(lat)+(hg-.5)*.25));}
  return c;}
-vec4 planet(vec2 p){float r=length(p);vec3 L=normalize(vec3(-.65,.45,.62));
+vec4 planet(vec2 p){float r=length(p);vec3 L=normalize(uL);
  float px=uPx;float cov=clamp((1.-r)/px*.5+.5,0.,1.);vec3 outc=vec3(0.);float oa=0.;
  if(r>1.-px){float h=max(r-1.,0.);vec2 d=p/max(r,1e-4);float lit=clamp(dot(d,normalize(L.xy))*.8+.35,0.,1.);
   outc=uAtmCol*exp(-h*22.)*uAtm*lit*.9;oa=clamp(max(outc.r,max(outc.g,outc.b)),0.,1.);}
  if(r>=1.)return vec4(outc,oa);
- vec2 pp=p/max(r,1.);float z=sqrt(max(0.,1.-dot(pp,pp)));vec3 n=vec3(pp,z);vec3 q=rY(uT*.035+uSeed)*(rX(.3)*n);
+ vec2 pp=p/max(r,1.);float z=sqrt(max(0.,1.-dot(pp,pp)));vec3 n=vec3(pp,z);vec3 q=rY(uT*.035+uSeed)*(rX(.3)*(uCam*n));
  float spec;vec3 emis;float cloud;vec3 c=surf(q,spec,emis,cloud);
  float nl=dot(n,L);float dif=max(nl,0.);float term=smoothstep(-.08,.2,nl);
  vec3 h=normalize(L+vec3(0,0,1));float sp=pow(max(dot(n,h),0.),60.)*spec*.7*term;
@@ -76,7 +76,7 @@ vec4 planet(vec2 p){float r=length(p);vec3 L=normalize(vec3(-.65,.45,.62));
  float fr=pow(1.-z,2.5);col+=uAtmCol*fr*uAtm*term*.9;
  col=tm(col*1.25);return vec4(mix(outc,col,cov),mix(oa,1.,cov));}
 // ---------------- buco nero ----------------
-vec4 hole(vec2 p){float r=length(p);float t=.2;vec2 d=vec2(p.x,p.y/t);float dr=length(d);float ang=atan(d.y,d.x);
+vec4 hole(vec2 p0){float r=length(p0);vec2 pn2=uBN.xy;float pl=length(pn2);pn2=pl>1e-3?pn2/pl:vec2(0.,1.);vec2 p=vec2(pn2.y*p0.x-pn2.x*p0.y,pn2.x*p0.x+pn2.y*p0.y);if(uBN.z<0.)p.y=-p.y;float t=max(abs(uBN.z),.04);vec2 d=vec2(p.x,p.y/t);float dr=length(d);float ang=atan(d.y,d.x);
  float om=uT*1.6/pow(max(dr,1.),1.5);float tb=fbm(vec3(cos(ang+om)*dr*1.6,sin(ang+om)*dr*1.6,dr*2.5));
  float band=smoothstep(1.45,1.7,dr)*smoothstep(4.8,3.,dr);float I=band*pow(1.6/max(dr,1.6),1.8)*(.35+1.3*tb*tb);
  float bo=pow(clamp(1.+.55*(-d.x/max(dr,1e-3)),.2,2.),3.);
@@ -84,12 +84,12 @@ vec4 hole(vec2 p){float r=length(p);float t=.2;vec2 d=vec2(p.x,p.y/t);float dr=l
  float rl=length(vec2(p.x*.96,p.y*1.08));float upper=smoothstep(-.1,.5,p.y);float al=atan(p.y,p.x);
  float Il=smoothstep(1.12,1.28,rl)*smoothstep(2.1,1.5,rl)*(.35+fbm(vec3(cos(al-uT*.4)*3.,sin(al-uT*.4)*3.,rl*5.)));
  float bl=pow(clamp(1.+.45*(-p.x/max(rl,1e-3)),.2,2.),2.);
- vec3 lens=vec3(1.,.7,.4)*Il*bl*uAcc*(upper*1.1+(1.-upper)*.35);
+ vec3 lens=vec3(1.,.7,.4)*Il*bl*uAcc*mix(upper*1.1+(1.-upper)*.35,.75,t*t);
  vec3 ring=vec3(1.,.85,.65)*exp(-pow((r-1.04)/.022,2.))*(.4+uAcc);
  vec3 c=vec3(0.);float a=0.;
  if(r<1.){a=1.;}else{c+=lens+ring;if(p.y>0.)c+=dcol;}
  if(p.y<=0.)c+=dcol;
- if(uAcc>.7){float jx=abs(p.x)/(.06+abs(p.y)*.08);float jet=exp(-jx*jx)*smoothstep(1.,1.6,abs(p.y))*exp(-abs(p.y)*.25)*(.6+.6*fbm(vec3(p.x*4.,p.y*1.5-sign(p.y)*uT*2.,1.)));c+=vec3(.55,.7,1.)*jet*(uAcc-.7)*3.;}
+ if(uAcc>.7){float jy=p.y/max(pl,.08);float jx=abs(p.x)/(.06+abs(jy)*.06);float jet=exp(-jx*jx)*smoothstep(1.,1.6,abs(p.y))*exp(-abs(jy)*.25)*pl*(.6+.6*fbm(vec3(p.x*4.,jy*1.5-sign(p.y)*uT*2.,1.)));c+=vec3(.55,.7,1.)*jet*(uAcc-.7)*3.;}
  c+=vec3(1.,.6,.3)*exp(-max(r-1.,0.)*1.2)*.05*uAcc;
  c=tm(c*1.3);a=max(a,clamp(max(c.r,max(c.g,c.b)),0.,1.));return vec4(c,a);}
 void main(){vec2 p=vp*uExt;int K=int(uKind+.5);
@@ -103,12 +103,12 @@ function pgInit(){if(PG.gl!==null)return PG.gl;const c=document.createElement('c
  const vs=sh(gl.VERTEX_SHADER,PG_VS),fs=sh(gl.FRAGMENT_SHADER,PG_FS);if(!vs||!fs){PG.gl=false;return false;}
  const pr=gl.createProgram();gl.attachShader(pr,vs);gl.attachShader(pr,fs);gl.linkProgram(pr);if(!gl.getProgramParameter(pr,gl.LINK_STATUS)){console.error('probe link',gl.getProgramInfoLog(pr));PG.gl=false;return false;}
  gl.useProgram(pr);gl.bindVertexArray(gl.createVertexArray());
- for(const n of['uT','uExt','uKind','uSeed','uGiant','uAct','uDim','uPulse','uPx','uPT','uWat','uBio','uTeq','uAtm','uAcc','uIce','uCol','uAtmCol'])PG.u[n]=gl.getUniformLocation(pr,n);
+ for(const n of['uT','uExt','uKind','uSeed','uGiant','uAct','uDim','uPulse','uPx','uPT','uWat','uBio','uTeq','uAtm','uAcc','uIce','uCol','uAtmCol','uL','uBN','uCam'])PG.u[n]=gl.getUniformLocation(pr,n);
  PG.c=c;PG.gl=gl;return gl;}
 function pgRender(size,U){const gl=pgInit();if(!gl)return null;size=Math.max(16,Math.min(720,Math.round(size)));
  if(PG.c.width!==size){PG.c.width=PG.c.height=size;}gl.viewport(0,0,size,size);gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT);
- const d={uT:0,uExt:1,uKind:0,uSeed:0,uGiant:0,uAct:0.3,uDim:1,uPulse:0,uPx:0.01,uPT:2,uWat:0,uBio:0,uTeq:300,uAtm:0,uAcc:0.5,uIce:0,...U};d.uPx=2*d.uExt/size*1.5;
- for(const k in d){const l=PG.u[k];if(!l)continue;const v=d[k];if(Array.isArray(v))gl.uniform3fv(l,v);else gl.uniform1f(l,v);}
+ const d={uT:0,uExt:1,uKind:0,uSeed:0,uGiant:0,uAct:0.3,uDim:1,uPulse:0,uPx:0.01,uPT:2,uWat:0,uBio:0,uTeq:300,uAtm:0,uAcc:0.5,uIce:0,uL:[-.65,.45,.62],uBN:[0,.98,.2],uCam:[1,0,0,0,1,0,0,0,1],...U};d.uPx=2*d.uExt/size*1.5;
+ for(const k in d){const l=PG.u[k];if(!l)continue;const v=d[k];if(Array.isArray(v)){if(v.length===9)gl.uniformMatrix3fv(l,false,v);else gl.uniform3fv(l,v);}else gl.uniform1f(l,v);}
  gl.drawArrays(gl.TRIANGLES,0,3);return PG.c;}
 function bbRGB(T){T/=100;let r,g,b;if(T<=66){r=255;g=99.47*Math.log(T)-161.12;b=T<=19?0:138.52*Math.log(T-10)-305.04;}else{r=329.7*Math.pow(T-60,-0.1332);g=288.12*Math.pow(T-60,-0.0755);b=255;}
  const c=[r,g,b].map(v=>Math.max(0,Math.min(255,v))/255);const m=Math.max(...c);return c.map(v=>v/m);}

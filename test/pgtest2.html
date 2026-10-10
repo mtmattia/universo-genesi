@@ -1,0 +1,9 @@
+<html><body style="margin:0;background:#04050a"><canvas id="o" width="1200" height="600"></canvas><script src="probegl.js"></script><script>
+function cb(yaw,pitch){const cp=Math.cos(pitch),sp=Math.sin(pitch),cy=Math.cos(yaw),sy=Math.sin(yaw);const z=[cp*sy,sp,cp*cy];const x=[cy,0,-sy];const y=[z[1]*x[2]-z[2]*x[1],z[2]*x[0]-z[0]*x[2],z[0]*x[1]-z[1]*x[0]];return{x,y,z};}
+window.go=()=>{const o=document.getElementById('o').getContext('2d');o.fillStyle='#04050a';o.fillRect(0,0,1200,600);
+ const views=[[0,.35],[1.3,.35],[2.6,.35],[0,1.3]];
+ views.forEach(([yw,pt],i)=>{const B=cb(yw,pt),M=[...B.x,...B.y,...B.z],d=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],tv=w=>{const l=Math.hypot(...w);return[d(B.x,w)/l,d(B.y,w)/l,d(B.z,w)/l];};
+  let c=pgRender(300,{uKind:1,uT:3,uExt:1.12,uSeed:4,uPT:2,uWat:1e-3,uBio:1,uTeq:300,uAtm:1,uAtmCol:[.35,.6,1],uCam:M,uL:tv([-0.65,0.45,0.62])});o.drawImage(c,i*300,0);
+  c=pgRender(300,{uKind:2,uT:3,uExt:5.5,uAcc:.9,uBN:tv([0.2,1,-0.1])});o.drawImage(c,i*300,300);});
+ return [0,'x',document.getElementById('o').toDataURL()];};
+</script></body></html>

@@ -296,8 +296,8 @@ const OFF=vec4<f32>(2.,2.,2.,1.);
  else if(b.w>0.0){rpx=v.px*clamp(2.0+sqrt(b.w)*14.0,2.0,6.0);col=select(vec4<f32>(1.0,0.93,0.75,1.0),vec4<f32>(b.rgb,1.0),v.q2>0.5);star=1.0;}
  o.pos=place(c,uv,rpx);o.uv=uv;o.col=col;o.ex=vec4<f32>(star,0.,0.,0.);return o;}
 @fragment fn fpt(i:O)->@location(0) vec4<f32>{let r2=dot(i.uv,i.uv);if(r2>1.0){discard;}
- if(i.ex.x>2.5){let r=sqrt(r2);let q=r*i.ex.z;let core=exp(-q*q*0.7);let halo=0.05*exp(-q*0.8)*min(1.0,i.ex.y*0.3);var spk=0.0;
-  if(i.ex.y>4.0){let ax=abs(i.uv.x)*i.ex.z;let ay=abs(i.uv.y)*i.ex.z;spk=(exp(-ay*ay*1.5)*exp(-ax*0.45)+exp(-ax*ax*1.5)*exp(-ay*0.45))*0.18*min(1.0,i.ex.y/40.0);}
+ if(i.ex.x>2.5){let r=sqrt(r2);let q=r*i.ex.z*1.9;let core=exp(-q*q*0.5);let halo=0.05*exp(-q*0.8)*min(1.0,i.ex.y*0.3);var spk=0.0;
+  if(i.ex.y>4.0){let ax=abs(i.uv.x)*i.ex.z*1.9;let ay=abs(i.uv.y)*i.ex.z*1.9;spk=(exp(-ay*ay*1.5)*exp(-ax*0.45)+exp(-ax*ax*1.5)*exp(-ay*0.45))*0.18*min(1.0,i.ex.y/40.0);}
   let fade=1.0-smoothstep(0.75,1.0,r);return vec4<f32>(i.col.rgb*(core+halo+spk)*fade,0.0);}
  var a=i.col.a;if(i.ex.x>1.5){let r=sqrt(r2);a=0.8*i.col.a*exp(-pow((r-0.36)*5.0,2.0))*(1.0-r);}else if(i.ex.x>0.5){a=0.9*exp(-r2*16.0)+0.05*exp(-r2*3.0);}else{a*=1.0-smoothstep(0.55,1.0,sqrt(r2));}
  return vec4<f32>(i.col.rgb*a,a);}
@@ -315,7 +315,7 @@ struct VO{@builtin(position) p:vec4<f32>,@location(0) uv:vec2<f32>};
 @vertex fn vfs(@builtin(vertex_index) i:u32)->VO{var o:VO;let q=vec2<f32>(f32((i<<1u)&2u),f32(i&2u));o.p=vec4<f32>(q*2.0-1.0,0.,1.);o.uv=vec2<f32>(q.x,1.0-q.y);return o;}
 @fragment fn fdown(i:VO)->@location(0) vec4<f32>{let ts=1.0/vec2<f32>(textureDimensions(src));var c=vec3<f32>(0.);for(var y=-1;y<=1;y++){for(var x=-1;x<=1;x++){c+=textureSampleLevel(src,smp,i.uv+vec2<f32>(f32(x),f32(y))*ts*1.5,0.).rgb;}}c/=9.0;let l=max(c.r,max(c.g,c.b));return vec4<f32>(c*max(l-pu.w,0.)/max(l,1e-4),1.);}
 @fragment fn fblur(i:VO)->@location(0) vec4<f32>{let ts=pu.xy/vec2<f32>(textureDimensions(src));var w=array<f32,5>(0.227,0.194,0.121,0.054,0.016);var c=textureSampleLevel(src,smp,i.uv,0.).rgb*w[0];for(var k=1;k<5;k++){let o=ts*f32(k)*1.6;c+=(textureSampleLevel(src,smp,i.uv+o,0.).rgb+textureSampleLevel(src,smp,i.uv-o,0.).rgb)*w[k];}return vec4<f32>(c,1.);}
-@fragment fn fcomp(i:VO)->@location(0) vec4<f32>{var c=(textureSampleLevel(src,smp,i.uv,0.).rgb+textureSampleLevel(blm,smp,i.uv,0.).rgb*0.3)*pu.z;
+@fragment fn fcomp(i:VO)->@location(0) vec4<f32>{var c=(textureSampleLevel(src,smp,i.uv,0.).rgb+textureSampleLevel(blm,smp,i.uv,0.).rgb*0.15)*pu.z;
  c=clamp((c*(2.51*c+0.03))/(c*(2.43*c+0.59)+0.14),vec3<f32>(0.),vec3<f32>(1.));let n=fract(sin(dot(i.p.xy,vec2<f32>(12.9898,78.233)))*43758.5453)/255.0;return vec4<f32>(c+vec3<f32>(0.012,0.015,0.03)*(1.0-c)+n,1.);}`;
 class GenesisGPU{
  static async create(canvas,opts){const g=new GenesisGPU();await g.init(canvas,opts||{});return g;}
@@ -418,7 +418,7 @@ class GenesisGPU{
   P.gDown=bg(this.pp.down,P.hdr,this.pub[0]);P.gH=bg(this.pp.blur,P.a,this.pub[1]);P.gV=bg(this.pp.blur,P.b,this.pub[2]);P.gComp=bg(this.pp.comp,P.hdr,this.pub[0],P.a);
   return this.post=P;}
  renderHDR(e,o,tex,tw,th){const d=this.dev,P=this.ensurePost(tw,th);const ex=o.exposure||1;
-  d.queue.writeBuffer(this.pub[0],0,new Float32Array([0,0,ex,1.2]));d.queue.writeBuffer(this.pub[1],0,new Float32Array([1,0,0,0]));d.queue.writeBuffer(this.pub[2],0,new Float32Array([0,1,0,0]));
+  d.queue.writeBuffer(this.pub[0],0,new Float32Array([0,0,ex,1.5]));d.queue.writeBuffer(this.pub[1],0,new Float32Array([1,0,0,0]));d.queue.writeBuffer(this.pub[2],0,new Float32Array([0,1,0,0]));
   const rp=e.beginRenderPass({colorAttachments:[{view:P.hdr.createView(),clearValue:{r:0,g:0,b:0,a:1},loadOp:'clear',storeOp:'store'}],depthStencilAttachment:{view:this.depth.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'discard'}});
   rp.setVertexBuffer(0,this.b.rb);rp.setPipeline(this.rpH.ring);rp.setBindGroup(0,this.rbgH.ring);rp.draw(6,this.N);
   rp.setPipeline(this.rpH.pt);rp.setBindGroup(0,this.rbgH.pt);rp.draw(6,this.N);

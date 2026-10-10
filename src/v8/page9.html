@@ -243,7 +243,7 @@ const NOPT=[8192,16384,32768,65536,131072,262144];
 $('npart').innerHTML=NOPT.map(n=>`<option value="${n}">${n.toLocaleString('it-IT')}</option>`).join('');
 let run=true,spin=true,turbo=false,mode=2,speed=6,cloud=0.55,showDM=true,lamOn=true;
 if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){spin=false;$('spin').setAttribute('aria-pressed','false');}
-const dpr=()=>Math.min(2,window.devicePixelRatio||1);
+const dpr=()=>Math.min(3,window.devicePixelRatio||1);
 // ================= camera orbitale =================
 const cam={t:[0,0,0],yaw:0.6,pitch:0.35,D:360,fov:50*Math.PI/180,follow:-1,ft:null};
 function persp(f,a,n,fr){return[f/a,0,0,0,0,f,0,0,0,0,fr/(n-fr),-1,0,0,n*fr/(n-fr),0];}
@@ -417,7 +417,7 @@ function selectObject(arr,i){const k=i*STRIDE,ty=arr[k+16];let kind=ty===4?'bh':
  const info={teq:arr[k+12],Z:arr[k+13],wat:arr[k+14],org:arr[k+15],bio:arr[k+10],ring:arr[k+8],L:arr[k+7],mass:arr[k+17]};
  let host=-1,pl=0;if(kind==='star'){const I=systemInfo(arr,i);info.sys=I;pl=I.pl;}if(kind==='planet'){host=hostStar(arr,i);if(host>=0&&host!==i)info.hostSys=systemInfo(arr,host);}
  sel={kind,i,info,host,pl};setFollow(i,{bh:'buco nero',wd:'nana bianca',ns:'stella di neutroni',dm:'materia oscura',star:'stella',planet:'pianeta',gas:'gas'}[kind]);
- cam.ft=[arr[k],arr[k+1],arr[k+2]];folSample(cam.ft);const D=kind==='star'||kind==='planet'?2.2:3;flyTo(D);probe.on=true;probe.D0=D;probe.t0=performance.now();probe.kind=kind;probe.flares=[];probe.real=false;renderSel();}
+ cam.ft=[arr[k],arr[k+1],arr[k+2]];folSample(cam.ft);const D=kind==='star'||kind==='planet'?2.2:3;flyTo(D);probe.on=true;probe.D0=D;probe.t0=performance.now();probe.kind=kind;probe.flares=[];probe.real=false;probe.bhC=null;renderSel();}
 function clearSel(){sel=null;probe.on=false;$('selcard').hidden=true;$('selcard').__h='';setFollow(-1);}
 let chipOpen=false;
 function chip(title,meta,btns){return `<div class="chip"><span class="ct">${title}</span>${btns.map(b=>`<button data-a="${b[0]}">${b[1]}</button>`).join('')}${meta?'<button class="ic" data-a="info" aria-label="Dettagli">i</button>':''}<button data-a="x">Esci</button></div><div class="chipmore"${chipOpen&&meta?'':' hidden'}>${meta}</div>`;}
@@ -515,7 +515,7 @@ function drawProbe(now){const c=$('probec'),x=c.getContext('2d'),W=c.width,H=c.h
   const sh=x.createRadialGradient(cx-R*0.45,cy-R*0.3,R*0.1,cx,cy,R*1.15);sh.addColorStop(0,'rgba(0,0,0,0)');sh.addColorStop(0.55,'rgba(0,0,0,0.12)');sh.addColorStop(1,'rgba(0,0,0,0.92)');x.fillStyle=sh;x.fillRect(cx-R,cy-R,2*R,2*R);x.restore();
   if(type==='ocean'||type==='desert'||type==='giant'){x.strokeStyle=type==='giant'?'rgba(255,220,170,.35)':'rgba(120,180,255,.55)';x.lineWidth=3*d;x.beginPath();x.arc(cx,cy,R+1.5*d,Math.PI*0.6,Math.PI*1.45);x.stroke();}}
  else if(k==='bh'){const R=R0*0.42,acc=Math.min(1,0.25+Math.log10(1+(S.acc||0)/(g?g.mGas:1)*2000)*0.25);const tilt=0.28;
-  if(pgInit()){const ext=5.5;const img=pgRender(2*R*ext,{uKind:2,uT:t,uExt:ext,uAcc:acc,uBN:toV([pgHash(cam.follow+3)-0.5,1,pgHash(cam.follow+5)-0.5])});if(img){x.drawImage(img,cx-R*ext,cy-R*ext,2*R*ext,2*R*ext);x.globalAlpha=1;return;}}
+  if(pgInit()){const ext=5.5,S2=2*R*ext;if(!probe.bhC||now-probe.bhT>45){const img=pgRender(S2,{uKind:2,uT:t,uExt:ext,uAcc:acc,uBN:toV([pgHash(cam.follow+3)-0.5,1,pgHash(cam.follow+5)-0.5])});if(img){if(!probe.bhC)probe.bhC=document.createElement('canvas');probe.bhC.width=img.width;probe.bhC.height=img.height;probe.bhC.getContext('2d').drawImage(img,0,0);probe.bhT=now;}}if(probe.bhC){x.drawImage(probe.bhC,cx-S2/2,cy-S2/2,S2,S2);x.globalAlpha=1;return;}}
   const disk=(front)=>{x.save();x.beginPath();if(front)x.rect(0,cy,W,H);else x.rect(0,0,W,cy);x.clip();for(let r=R*2.6;r>R*1.15;r-=R*0.08){const q=(r-R*1.15)/(R*1.45);const h=255,gcol=200-120*q,bcol=140-120*q;x.strokeStyle=`rgba(${h},${gcol|0},${Math.max(0,bcol)|0},${acc*(0.55-0.4*q)})`;x.lineWidth=R*0.09;x.beginPath();x.ellipse(cx,cy,r,r*tilt,0,0,6.283);x.stroke();}x.restore();};
   disk(false);x.strokeStyle=`rgba(255,200,140,${acc*0.8})`;x.lineWidth=R*0.12;x.beginPath();x.ellipse(cx,cy-R*0.05,R*1.25,R*1.05,0,Math.PI,2*Math.PI);x.stroke();
   x.fillStyle='#000';x.beginPath();x.arc(cx,cy,R,0,6.283);x.fill();x.strokeStyle=`rgba(255,230,190,${0.5+acc*0.4})`;x.lineWidth=1.5*d;x.beginPath();x.arc(cx,cy,R*1.03,0,6.283);x.stroke();disk(true);
